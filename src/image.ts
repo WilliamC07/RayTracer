@@ -1,8 +1,9 @@
-import {Edge, EdgeMatrix, PolygonMatrix} from "./matrix";
+import {createPolygonMatrix, Edge, EdgeMatrix, PolygonMatrix} from "./matrix";
 import {exec} from "child_process";
 import {promises as fs} from "fs";
 import {dotProduct, calculateSurfaceNormal, Vector, vectorize} from "./utility/math-utility";
 import {calculateColor, Color, SymbolColor, viewingVector} from "./render/lighting";
+import {Transformer} from "./transformations";
 
 export default class Image {
     public columns: number;
@@ -27,17 +28,6 @@ export default class Image {
         for(let row = 0; row < rows; row++){
             this.matrix[row] = new Array(columns);
             this.zBuffer[row] = new Array(columns).fill(-Infinity);
-        }
-    }
-
-    /**
-     * Draw lines
-     * @param edgeMatrix Matrix with edge coordinates
-     */
-    public drawEdges(edgeMatrix: EdgeMatrix){
-        for(let pointIndex = 0; pointIndex < edgeMatrix.length; pointIndex += 2){
-            this.line(edgeMatrix[pointIndex][0], edgeMatrix[pointIndex][1], edgeMatrix[pointIndex][2],
-                edgeMatrix[pointIndex + 1][0], edgeMatrix[pointIndex + 1][1], edgeMatrix[pointIndex + 1][2], "0 0 0");
         }
     }
 
@@ -164,9 +154,10 @@ export default class Image {
     public display(){
         // save file first
         const fileName = `temp${Image.tempIndex++}.ppm`;
-        this.saveToDisk(fileName);
-        // show the image
-        exec(`display ${fileName}`);
+        this.saveToDisk(fileName).then(() => {
+            exec(`display ${fileName}`);
+            exec(`display ${fileName}`);
+        });
     }
 
     /**
@@ -185,6 +176,27 @@ export default class Image {
         }
     }
 
+    /**
+     * Converts this image to a string
+     * @returns String representation of the image that follows PPM P3 specifications
+     */
+    toString(): string{
+        let string = `P3\n${this.columns} ${this.rows}\n255\n`;
+        for(let row = 0; row < this.rows; row++){
+            for(let column = 0; column < this.columns; column++){
+                const color = this.matrix[row][column];
+                if(color === undefined || color === ""){
+                    // No color, default to white
+                    string += "255 255 255\n";
+                }else{
+                    string += color + "\n";
+                }
+            }
+        }
+        return string;
+    }
+
+    /* 2D stuff deprecated */
     /**
      * Draw a line given two points: (Point0 and Point1).
      * @param col0 First point row index
@@ -283,22 +295,13 @@ export default class Image {
     }
 
     /**
-     * Converts this image to a string
-     * @returns String representation of the image that follows PPM P3 specifications
+     * Draw lines
+     * @param edgeMatrix Matrix with edge coordinates
      */
-    toString(): string{
-        let string = `P3\n${this.columns} ${this.rows}\n255\n`;
-        for(let row = 0; row < this.rows; row++){
-            for(let column = 0; column < this.columns; column++){
-                const color = this.matrix[row][column];
-                if(color === undefined || color === ""){
-                    // No color, default to white
-                    string += "255 255 255\n";
-                }else{
-                    string += color + "\n";
-                }
-            }
+    public drawEdges(edgeMatrix: EdgeMatrix){
+        for(let pointIndex = 0; pointIndex < edgeMatrix.length; pointIndex += 2){
+            this.line(edgeMatrix[pointIndex][0], edgeMatrix[pointIndex][1], edgeMatrix[pointIndex][2],
+                edgeMatrix[pointIndex + 1][0], edgeMatrix[pointIndex + 1][1], edgeMatrix[pointIndex + 1][2], "0 0 0");
         }
-        return string;
     }
 }

@@ -1,5 +1,5 @@
 import {
-    addEdge,
+    addEdge, createEdgeMatrix, createPolygonMatrix,
     EdgeMatrix,
     multiplyEdgeMatrix, PolygonMatrix,
     toInteger,
@@ -21,14 +21,15 @@ import path from 'path'
 import {SymbolColor} from "../render/lighting";
 import fs from 'fs';
 
-interface ParsedMDLCommand {
+// MDL file typings
+interface MDLCommand {
     readonly args: null|number[]|string[],
     readonly op: string,
     readonly constants?: string, // refer to MDLSymbol
     readonly knob?: string|null,
     readonly cs?: string|null,
 }
-type ParsedMDLSymbol = [
+type MDLSymbol = [
     string, // "constants"
     {
         // ambient, diffuse, specular factor
@@ -37,34 +38,12 @@ type ParsedMDLSymbol = [
         readonly red: [number, number, number],
     }
 ]
-interface ParsedMDL {
-    readonly commands: ParsedMDLCommand[],
+interface MDLObject {
+    readonly commands: MDLCommand[],
     readonly symbols: {
-        readonly [constantName: string]: ParsedMDLSymbol
+        readonly [constantName: string]: MDLSymbol
     }
 }
-
-/**
- * Parses the provided file name to a JSON that can be more easily parsed. Uses a python library to do so.
- * @param fileName
- * @param edgeMatrix
- * @param polygonMatrix
- * @param transformer
- * @param image
- */
-const parse = (fileName: string, edgeMatrix: EdgeMatrix, polygonMatrix: PolygonMatrix, transformer: Transformer, image: Image) => {
-    const file_path = path.join(process.cwd(), fileName);
-    const python_parser = spawn('python3', ["./src/parser/ply/main.py", file_path]);
-    let parsedMDL;
-    python_parser.stdout.on('data', function(data: string){
-        data = data.toString();
-        if(data.includes("ERROR")){
-            printAndDie("Failed to parse the mdl file. Error: " + data.split("\n")[0]);
-        }
-        parsedMDL = JSON.parse(data.toString());
-        parseMDL(parsedMDL, edgeMatrix, polygonMatrix, image);
-    });
-};
 
 const symbols = new Map<string, SymbolColor>();
 // default value if no color is chosen by the mdl file
@@ -75,8 +54,53 @@ symbols.set(DEFAULT_WHITE, {
     blue: [0.2, 0.5, 0.5]
 });
 
-function parseMDL(parsedMDL: ParsedMDL, edgeMatrix: EdgeMatrix, polygonMatrix: PolygonMatrix, image: Image){
-    // parse the symbols out of the MDL
+function parseMDLFile(fileName: string){
+    const filePath = path.join(process.cwd(), fileName);
+    // parse the mdl file and convert it into a json
+    spawn("python3", ["./src/parser/ply/main.py", filePath]).stdout.on("data", (data) => {
+        data = data.toString();
+
+        if(data.includes("ERROR")){
+            const errorMessage = data.split("\n")[0];
+            printAndDie("Failed to parse the MDL file:" + errorMessage);
+        }
+
+        parseMDLJSON(JSON.parse(data));
+    });
+}
+export default parseMDLFile;
+
+function parseMDLJSON(parsedMDL: MDLObject){
+    // parse symbols
+
+    const isAnimation = checkIfMDLIsAnimation(parsedMDL);
+
+    // make sure we have all the commands required if the mdl file is an animation type
+    if(isAnimation){
+        parseAnimationMDL(parsedMDL);
+    }else{
+        parseStaticMDL(parsedMDL);
+    }
+}
+
+function checkIfMDLIsAnimation(parsedMDL: MDLObject): boolean{
+    const animationCommandOperations = ["frames", "basename", "vary"];
+    for(const command of parsedMDL.commands){
+        if(animationCommandOperations.includes(command.op)){
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function parseAnimationMDL(parsedMDL: MDLObject){
+    let frames = 0;
+    let basename = "";
+    let varyCommands: MDLCommand[] = [];
+    let knobsForFrame: Map<string, number>[];
+
+    /* parse the symbols out of the MDL */
     for(const [symbolName, values] of Object.entries(parsedMDL.symbols)){
         // remove the "constants" entry
         if(values[0] === "constants"){
@@ -84,88 +108,139 @@ function parseMDL(parsedMDL: ParsedMDL, edgeMatrix: EdgeMatrix, polygonMatrix: P
             symbols.set(symbolName, values[1]);
         }
     }
-    /* parse the commands */
-    // error checking pass
-    let isAnimation = false;
-    let hasVary: boolean = false;
-    let frames: number = undefined;
-    let basename: string = undefined;
-    let varyCommands: ParsedMDLCommand[] = [];
-    let knobs: Map<string, number>[]|undefined;
-    const writingToDiskPromises = [];
 
-    // determine if is animation or static image being generated from mdl.
-    //
-    // if it is an animation, read all the required info: "frames", "basename", and "vary"
+    /* Get initializing data (frames, basename, and vary commands) from MDL file */
     for(const command of parsedMDL.commands){
-        // Do a strict check
         switch(command.op){
             case 'frames':
                 frames = (command.args as number[])[0];
-                isAnimation = true;
+                // each frame should keep track of knob values
+                knobsForFrame = new Array(frames);
+                for(let frame = 0; frame < frames; frame++){
+                    knobsForFrame[frame] = new Map();
+                }
                 break;
             case 'basename':
                 basename = (command.args as string[])[0];
-                isAnimation = true;
                 break;
             case 'vary':
-                hasVary = true;
                 varyCommands.push(command);
                 break;
         }
     }
 
-    // make sure we have all the animation details
-    validateMDL(isAnimation, hasVary, frames, basename);
+    /* Make sure we get all the initializing data */
+    const errors: string[] = [];
+    if(frames === 0){
+        errors.push("No frames set.");
+    }
+    if(basename === ""){
+        errors.push("No basename set.");
+    }
+    if(varyCommands.length === 0){
+        console.log("\x1b[33m", "No vary commands");
+    }
+    if(errors.length !== 0){
+        printAndDie(errors.join("\n"));
+    }
 
-    // keep track of animation commands and knobs for each frame
-    if(isAnimation){
-        knobs = new Array(frames);
-        for(let frame = 0; frame < frames; frame++){
-            knobs[frame] = new Map();
+    /* Generate a table of knob values for each frame */
+    for(const varyCommand of varyCommands){
+        const [startFrame, endFrame, startValue, endValue] = (varyCommand.args as number[]);
+        if(startFrame > endFrame){
+            printAndDie("Start frame must come before the end frame: vary for " + varyCommand.knob as string);
+        }
+
+        const step = (endValue - startValue) / (endFrame - startFrame);
+        let currentValue = startValue;
+        for(let frame = startFrame; frame <= endFrame; frame++) {
+            knobsForFrame[frame].set(varyCommand.knob, currentValue);
+            currentValue += step;
         }
     }
 
-    // generate the knob table
-    if(isAnimation){
-        generateKnobTable(varyCommands, knobs);
-    }
+    const fileCreatedPromises = generateImage(parsedMDL, frames, knobsForFrame, basename);
 
-    // generate image
-    for(let frame = 0; frame < frames; frame++){
-        // first element of the stack is an identity matrix
-        const transformationStack: Transformer[] = [createTransformer()];
+    /* Create a gif from the created images */
+    Promise.all(fileCreatedPromises).then(() => {
+        // create the gif
+        console.log("Converting images to gif");
+        // convert to gif and display
+        exec(`convert -delay 10 animation/${basename}{0..${frames - 1}}.ppm ${basename}.gif && animate ${basename}.gif`);
+    }).catch((error) => {
+        printAndDie("Failed to write to disk all the images: \n" + error.message);
+    })
+}
+
+function parseStaticMDL(parsedMDL: MDLObject){
+    // a static image can be thought of as a single frame animation
+    generateImage(parsedMDL, 1);
+}
+
+function generateImage(parsedMDL: MDLObject, frames: number, knobsForFrame?: Map<string, number>[], basename?: string): Promise<void>[] {
+    const polygonMatrix = createPolygonMatrix();
+    const image = new Image(500, 500);
+    const fileWritingPromises: Promise<void>[] = [];
+
+    for (let frame = 0; frame < frames; frame++) {
+        const transformationStack: Transformer[] = [createTransformer()];  // initialize with identity transformation
         console.log("frame", frame);
-        for(const command of parsedMDL.commands){
-            const transformerPeekStack = transformationStack[transformationStack.length - 1];
-            switch(command.op){
+        for (const command of parsedMDL.commands) {
+            const currentTransformation = transformationStack[transformationStack.length - 1];
+            switch (command.op) {
                 // constants are parsed out already
-                case 'constants': break;
+                case 'constants':
+                    break;
 
                 // 3d shapes
-                case 'sphere': sphere(command.args as number[], symbols.get(command.constants), polygonMatrix, transformerPeekStack, image); break;
-                case 'box': box(command.args as number[], symbols.get(command.constants), polygonMatrix, transformerPeekStack, image); break;
-                case 'torus': torus(command.args as number[], symbols.get(command.constants), polygonMatrix, transformerPeekStack, image); break;
-                case 'mesh': mesh(symbols.get(command.constants), (command.args as string[])[0], polygonMatrix, transformerPeekStack, image); break;
+                case 'sphere':
+                    sphere(command.args as number[], symbols.get(command.constants), polygonMatrix, currentTransformation, image);
+                    break;
+                case 'box':
+                    box(command.args as number[], symbols.get(command.constants), polygonMatrix, currentTransformation, image);
+                    break;
+                case 'torus':
+                    torus(command.args as number[], symbols.get(command.constants), polygonMatrix, currentTransformation, image);
+                    break;
+                case 'mesh':
+                    mesh(symbols.get(command.constants), (command.args as string[])[0], polygonMatrix, currentTransformation, image);
+                    break;
 
                 // transformation
-                case 'push': push(transformationStack); break;
-                case 'pop': pop(transformationStack); break;
-                case 'move': move(command.args as number[], transformerPeekStack, command.knob, knobs[frame]); break;
-                case 'rotate': rotate(command.args, transformerPeekStack, command.knob, knobs[frame]); break;
-                case 'scale': scale(command.args, transformerPeekStack, command.knob, knobs[frame]); break;
+                case 'push':
+                    push(transformationStack);
+                    break;
+                case 'pop':
+                    pop(transformationStack);
+                    break;
+                case 'move':
+                    move(command.args as number[], currentTransformation, command.knob, knobsForFrame?.[frame]);
+                    break;
+                case 'rotate':
+                    rotate(command.args, currentTransformation, command.knob, knobsForFrame?.[frame]);
+                    break;
+                case 'scale':
+                    scale(command.args, currentTransformation, command.knob, knobsForFrame?.[frame]);
+                    break;
 
                 // controls
-                case 'display': display(image, edgeMatrix); break;
-                case 'save': save((command.args as string[])[0], image, edgeMatrix, polygonMatrix); break;
-                case 'clear': clear(edgeMatrix, polygonMatrix, image); break;
+                case 'display':
+                    image.display();
+                    break;
+                case 'save':
+                    save((command.args as string[])[0], image);
+                    break;
+                case 'clear':
+                    clear(polygonMatrix, image);
+                    break;
 
-                // animation handle
-                case 'vary': break;
-
-                // ignore these animation details since they were parsed earlier
-                case 'frames': break;
-                case 'basename': break;
+                // ignore these animation details since they were handled earlier
+                case 'frames':
+                    break;
+                case 'basename':
+                    break;
+                case 'vary':
+                    break;
 
                 default: {
                     throw new Error("Failed to parse: " + command.op);
@@ -173,75 +248,17 @@ function parseMDL(parsedMDL: ParsedMDL, edgeMatrix: EdgeMatrix, polygonMatrix: P
             }
         }
 
-        // save as special file if animation, otherwise the file should be saved as the provided save filename already
-        if(isAnimation){
+        // save animation frame separately since animation does not use "save" operation
+        if (frames > 1) {
             const directory = "animation";
-            writingToDiskPromises.push(image.saveToDisk(path.join(directory, basename + frame + ".ppm")));
+            fileWritingPromises.push(image.saveToDisk(path.join(directory, basename + frame + ".ppm")));
             // clear the old frame
-            image.clear();
+            clear(polygonMatrix, image);
         }
     }
 
-    if(isAnimation){
-        // turn into a gif
-        console.log("Waiting to finish writing frames to disk");
-        Promise.all(writingToDiskPromises).then(() => {
-            console.log("Converting images to gif");
-            // convert to gif
-            exec(`convert -delay 10 animation/${basename}{0..${frames - 1}}.ppm ${basename}.gif && animate ${basename}.gif`);
-        })
-    }
+    return fileWritingPromises;
 }
-
-/**
- * If the mdl file is of animation type, make sure we have all the needed parameters. Exit the program is any fields
- * are missing. <strong>Does not check if vary has the right parameters.</strong>
- * @param isAnimation
- * @param hasVary
- * @param frames
- * @param basename
- */
-function validateMDL(isAnimation: boolean, hasVary: boolean, frames: number|undefined, basename: string|undefined){
-    if(isAnimation){
-        const errors: string[] = [];
-        if(!hasVary){
-            errors.push("No 'vary' operation found.");
-        }
-        if(frames == undefined){
-            errors.push("No 'frames' set.")
-        }
-        if(basename == undefined){
-            errors.push("No 'basename' set.")
-        }
-
-        // print out errors and die
-        if(errors.length !== 0 ){
-            printAndDie(errors.join(" "));
-        }
-    }
-}
-
-/**
- * Generates a table that stores knob values for every frame.
- * @param varyCommands
- * @param knobs Should be populated with empty maps. Should be length of frames of animation.
- */
-function generateKnobTable(varyCommands: ParsedMDLCommand[], knobs: Map<string, number>[]){
-    for(const varyCommand of varyCommands){
-        const [startFrame, endFrame, startValue, endValue] = (varyCommand.args as number[]);
-        if(startFrame > endFrame){
-            printAndDie("Start frame must come before the end frame.")
-        }
-
-        const step = (endValue - startValue) / (endFrame - startFrame);
-        let currentValue = startValue;
-        for(let frame = startFrame; frame <= endFrame; frame++) {
-            knobs[frame].set(varyCommand.knob, currentValue);
-            currentValue += step;
-        }
-    }
-}
-
 
 function mesh(color: SymbolColor, fileName: string, polygonMatrix: PolygonMatrix, transformer: Transformer, image: Image){
     if(fileName.endsWith(".obj")){
@@ -251,11 +268,6 @@ function mesh(color: SymbolColor, fileName: string, polygonMatrix: PolygonMatrix
     }
 }
 
-function bezier(parameter: string, edgeMatrix: EdgeMatrix){
-    const [x0, y0, x1, y1, x2, y2, x3, y3] = parameter.split(" ").map(val => parseInt(val));
-    bezierCurve(x0, y0, x1, y1, x2, y2, x3, y3, edgeMatrix);
-}
-
 function box(args: number[], color: SymbolColor, polygonMatrix: PolygonMatrix, transformer: Transformer, image: Image){
     const [x, y, z, width, height, depth] = args;
     drawBox(x, y, z, width, height, depth, polygonMatrix);
@@ -263,31 +275,9 @@ function box(args: number[], color: SymbolColor, polygonMatrix: PolygonMatrix, t
     draw(image, polygonMatrix, color);
 }
 
-function circle(parameter: string, edgeMatrix: EdgeMatrix){
-    const [cx, cy, cz, r] = parameter.split(" ").map(val => parseInt(val));
-    drawCircle(cx, cy, r, edgeMatrix);
-}
-
-function clear(edgeMatrix: EdgeMatrix, polygonMatrix: PolygonMatrix, image: Image){
-    edgeMatrix.length = 0;
+function clear(polygonMatrix: PolygonMatrix, image: Image){
     polygonMatrix.length = 0;
     image.clear();
-}
-
-function display(image: Image, edgeMatrix: EdgeMatrix){
-    toInteger(edgeMatrix);
-    image.drawEdges(edgeMatrix);
-    image.display();
-}
-
-function hermite(parameter: string, edgeMatrix: EdgeMatrix){
-    const [x0, y0, x1, y1, rx0, ry0, rx1, ry1] = parameter.split(" ").map(val => parseInt(val));
-    hermiteCurve(x0, y0, x1, y1, rx0, ry0, rx1, ry1, edgeMatrix);
-}
-
-function line(parameter: string, edgeMatrix: EdgeMatrix){
-    const [x0, y0, z0, x1, y1, z1] = parameter.split(" ").map(value => parseInt(value));
-    addEdge(edgeMatrix, [x0, y0, z0], [x1, y1, z1]);
 }
 
 /**
@@ -361,7 +351,7 @@ function push(transformationStack: Transformer[]){
     transformationStack.push(deepCopyTransformer(peekStack));
 }
 
-function save(fileName: string, image: Image, edgeMatrix: EdgeMatrix, polygonMatrix: PolygonMatrix){
+function save(fileName: string, image: Image){
     if(!fileName.endsWith(".png")){
         fileName += ".png";
     }
@@ -381,9 +371,7 @@ function draw(image: Image, polygonMatrix: PolygonMatrix, symbolColor: SymbolCol
 }
 
 function printAndDie(message: string){
-    console.log("\x1b[41m", message);
-    console.log("\x1b[41m", "exiting");
+    console.log("\x1b[31m", message);
+    console.log("\x1b[31m", "exiting");
     process.exit();
 }
-
-export default parse;

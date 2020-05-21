@@ -4,7 +4,7 @@ all:
 	node src/index.js script.mdl
 
 dev:
-	node src/index.js script.mdl
+	node --enable-source-maps src/index.js script.mdl
 
 myscript:
 	echo "myscript running"
