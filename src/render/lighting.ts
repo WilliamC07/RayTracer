@@ -1,4 +1,5 @@
-import {dotProduct, normalizeVector, scaleVector, subtractVector, Vector} from "../utility/math-utility";
+import {normalizeVector, Vector} from "../utility/math-utility";
+import {dotProduct, scaleRay, subtractRay} from "./ray";
 
 export interface SymbolColor {
     // ambient, diffuse, specular factor
@@ -79,7 +80,7 @@ export function calculateColor(surfaceNormal: Vector, colorName?: string): Strin
 }
 
 function calculateSpecularColorValue(normalizedSurfaceNormal: Vector, normalizedLightVector: Vector, colorValue: number, reflectionFactor: number): number {
-    const reflectionVector = subtractVector(scaleVector(normalizedSurfaceNormal, 2 * dotProduct(normalizedSurfaceNormal, normalizedLightVector)), normalizedLightVector);
+    const reflectionVector = subtractRay(scaleRay(normalizedSurfaceNormal, 2 * dotProduct(normalizedSurfaceNormal, normalizedLightVector)), normalizedLightVector);
     const factor = dotProduct(reflectionVector, normalizeVector(viewingVector));
     if(factor < 0){
         // no reflection

@@ -1,9 +1,10 @@
 import {createPolygonMatrix, Edge, EdgeMatrix, PolygonMatrix} from "./matrix";
 import {exec} from "child_process";
 import {promises as fs} from "fs";
-import {dotProduct, calculateSurfaceNormal, Vector, vectorize} from "./utility/math-utility";
+import {calculateSurfaceNormal, Vector, vectorize} from "./utility/math-utility";
 import {calculateColor, Color, SymbolColor, viewingVector} from "./render/lighting";
 import {Transformer} from "./transformations";
+import {dotProduct} from "./render/ray";
 
 export default class Image {
     public columns: number;
