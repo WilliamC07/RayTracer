@@ -18,7 +18,7 @@ import {bezierCurve, drawCircle, hermiteCurve, drawBox, drawSphere, drawTorus} f
 import {objParser} from "./obj-parser";
 import {exec, spawn} from "child_process";
 import path from 'path'
-import {SymbolColor} from "../render/lighting";
+import {addColor, SymbolColor} from "../render/lighting";
 import fs from 'fs';
 
 // MDL file typings
@@ -31,12 +31,7 @@ interface MDLCommand {
 }
 type MDLSymbol = [
     string, // "constants"
-    {
-        // ambient, diffuse, specular factor
-        readonly blue: [number, number, number],
-        readonly green: [number, number, number],
-        readonly red: [number, number, number],
-    }
+    SymbolColor
 ]
 interface MDLObject {
     readonly commands: MDLCommand[],
@@ -44,15 +39,6 @@ interface MDLObject {
         readonly [constantName: string]: MDLSymbol
     }
 }
-
-const symbols = new Map<string, SymbolColor>();
-// default value if no color is chosen by the mdl file
-const DEFAULT_WHITE = "default.white";
-symbols.set(DEFAULT_WHITE, {
-    red: [0.2, 0.5, 0.5],
-    green: [0.2, 0.5, 0.5],
-    blue: [0.2, 0.5, 0.5]
-});
 
 function parseMDLFile(fileName: string){
     const filePath = path.join(process.cwd(), fileName);
@@ -71,7 +57,14 @@ function parseMDLFile(fileName: string){
 export default parseMDLFile;
 
 function parseMDLJSON(parsedMDL: MDLObject){
-    // parse symbols
+    /* parse the symbols out of the MDL */
+    for(const [symbolName, values] of Object.entries(parsedMDL.symbols)){
+        // remove the "constants" entry
+        if(values[0] === "constants"){
+            // example of values[1]: 0.3
+            addColor(symbolName, values[1]);
+        }
+    }
 
     const isAnimation = checkIfMDLIsAnimation(parsedMDL);
 
@@ -99,15 +92,6 @@ function parseAnimationMDL(parsedMDL: MDLObject){
     let basename = "";
     let varyCommands: MDLCommand[] = [];
     let knobsForFrame: Map<string, number>[];
-
-    /* parse the symbols out of the MDL */
-    for(const [symbolName, values] of Object.entries(parsedMDL.symbols)){
-        // remove the "constants" entry
-        if(values[0] === "constants"){
-            // example of values[1]: 0.3
-            symbols.set(symbolName, values[1]);
-        }
-    }
 
     /* Get initializing data (frames, basename, and vary commands) from MDL file */
     for(const command of parsedMDL.commands){
@@ -194,16 +178,16 @@ function generateImage(parsedMDL: MDLObject, frames: number, knobsForFrame?: Map
 
                 // 3d shapes
                 case 'sphere':
-                    sphere(command.args as number[], symbols.get(command.constants), polygonMatrix, currentTransformation, image);
+                    sphere(command.args as number[], polygonMatrix, currentTransformation, image, command.constants);
                     break;
                 case 'box':
-                    box(command.args as number[], symbols.get(command.constants), polygonMatrix, currentTransformation, image);
+                    box(command.args as number[], polygonMatrix, currentTransformation, image, command.constants);
                     break;
                 case 'torus':
-                    torus(command.args as number[], symbols.get(command.constants), polygonMatrix, currentTransformation, image);
+                    torus(command.args as number[], polygonMatrix, currentTransformation, image, command.constants);
                     break;
                 case 'mesh':
-                    mesh(symbols.get(command.constants), (command.args as string[])[0], polygonMatrix, currentTransformation, image);
+                    mesh((command.args as string[])[0], polygonMatrix, currentTransformation, image, command.constants);
                     break;
 
                 // transformation
@@ -260,19 +244,19 @@ function generateImage(parsedMDL: MDLObject, frames: number, knobsForFrame?: Map
     return fileWritingPromises;
 }
 
-function mesh(color: SymbolColor, fileName: string, polygonMatrix: PolygonMatrix, transformer: Transformer, image: Image){
+function mesh(fileName: string, polygonMatrix: PolygonMatrix, transformer: Transformer, image: Image, colorName?: string){
     if(fileName.endsWith(".obj")){
         objParser(fileName, polygonMatrix);
         multiplyEdgeMatrix(transformer, polygonMatrix);
-        draw(image, polygonMatrix, color);
+        draw(image, polygonMatrix, colorName);
     }
 }
 
-function box(args: number[], color: SymbolColor, polygonMatrix: PolygonMatrix, transformer: Transformer, image: Image){
+function box(args: number[], polygonMatrix: PolygonMatrix, transformer: Transformer, image: Image, colorName: string){
     const [x, y, z, width, height, depth] = args;
     drawBox(x, y, z, width, height, depth, polygonMatrix);
     multiplyEdgeMatrix(transformer, polygonMatrix);
-    draw(image, polygonMatrix, color);
+    draw(image, polygonMatrix, colorName);
 }
 
 function clear(polygonMatrix: PolygonMatrix, image: Image){
@@ -327,18 +311,18 @@ function scale(args: any[], transformer: Transformer, knob?: string|null, knobsF
     toScale(transformer, x, y, z);
 }
 
-function sphere(args: number[], color: SymbolColor, polygonMatrix: PolygonMatrix, transformer: Transformer, image: Image, cs?: string){
+function sphere(args: number[], polygonMatrix: PolygonMatrix, transformer: Transformer, image: Image, colorName: string){
     const [x, y, z, radius] = args;
     drawSphere(polygonMatrix, x, y, z, radius);
     multiplyEdgeMatrix(transformer, polygonMatrix);
-    draw(image, polygonMatrix, color);
+    draw(image, polygonMatrix, colorName);
 }
 
-function torus(args: number[], color: SymbolColor, polygonMatrix: PolygonMatrix, transformer: Transformer, image: Image){
+function torus(args: number[], polygonMatrix: PolygonMatrix, transformer: Transformer, image: Image, colorName: string){
     const [x, y, z, radius1, radius2] = args;
     drawTorus(polygonMatrix, x, y, z, radius1, radius2);
     multiplyEdgeMatrix(transformer, polygonMatrix);
-    draw(image, polygonMatrix, color);
+    draw(image, polygonMatrix, colorName);
 }
 
 function pop(transformationStack: Transformer[]){
@@ -360,12 +344,9 @@ function save(fileName: string, image: Image){
     image.clear();
 }
 
-function draw(image: Image, polygonMatrix: PolygonMatrix, symbolColor: SymbolColor){
-    if(symbolColor == undefined){
-        symbolColor = symbols.get(DEFAULT_WHITE);
-    }
+function draw(image: Image, polygonMatrix: PolygonMatrix, colorName?: string){
     toInteger(polygonMatrix);
-    image.drawPolygons(polygonMatrix, symbolColor);
+    image.drawPolygons(polygonMatrix, colorName);
     // clear polygon drawn
     polygonMatrix.length = 0;
 }

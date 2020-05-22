@@ -31,7 +31,7 @@ export default class Image {
         }
     }
 
-    public drawPolygons(polygons: PolygonMatrix, symbolColor: SymbolColor){
+    public drawPolygons(polygons: PolygonMatrix, colorName?: string){
         for(let point = 0; point < polygons.length - 2; point+=3){
             const p0 = polygons[point];
             const p1 = polygons[point + 1];
@@ -45,7 +45,7 @@ export default class Image {
             // For the triangle to be drawn, the angle between the surfaceNormal and viewVector needs to be
             // between -90 degrees and 90 degrees
             if(dotProduct(surfaceNormal, viewingVector) > 0) {
-                const color = calculateColor(surfaceNormal, symbolColor);
+                const color = calculateColor(surfaceNormal, colorName);
 
                 // organize the points of the triangle by their y values
                 let [bottom, middle, top] = [p0, p1, p2];

@@ -2,9 +2,21 @@ import {dotProduct, normalizeVector, scaleVector, subtractVector, Vector} from "
 
 export interface SymbolColor {
     // ambient, diffuse, specular factor
-    blue: [number, number, number],
-    green: [number, number, number],
-    red: [number, number, number],
+    readonly blue: [number, number, number],
+    readonly green: [number, number, number],
+    readonly red: [number, number, number],
+}
+const colors = new Map<string, SymbolColor>();
+// default white color
+const DEFAULT_WHITE = "default.white";
+colors.set(DEFAULT_WHITE, {
+    red: [0.2, 0.5, 0.5],
+    green: [0.2, 0.5, 0.5],
+    blue: [0.2, 0.5, 0.5]
+});
+export function addColor(name: string, color: SymbolColor){
+    console.log("color: ", name, color);
+    colors.set(name, color);
 }
 
 // the vector the user is looking from
@@ -30,18 +42,19 @@ export type Color = {
     green: number,
     blue: number
 }
-export const ambientLightColor: Color = {
+const ambientLightColor: Color = {
     red: 255,
     green: 255,
     blue: 255
 };
-export const pointLightColor: Color = {
+const pointLightColor: Color = {
     red: 255,
     green: 255,
     blue: 255
 };
 
-export function calculateColor(surfaceNormal: Vector, factor: SymbolColor): String{
+export function calculateColor(surfaceNormal: Vector, colorName?: string): String{
+    const color = colorName ? colors.get(colorName) : colors.get(DEFAULT_WHITE);
     const normalizedLightVector = normalizeVector(lightVector);
     const normalizedSurfaceNormal = normalizeVector(surfaceNormal);
 
@@ -52,15 +65,15 @@ export function calculateColor(surfaceNormal: Vector, factor: SymbolColor): Stri
     const SPECULAR = 2;
 
     // color = ambientColor + diffuseColor + specularColor
-    const red = ambientLightColor.red * factor.red[AMBIENT]
-        + pointLightColor.red * factor.red[DIFFUSE] * (diffuseReflectionFactor);
-        + calculateSpecularColorValue(normalizedSurfaceNormal, normalizedLightVector, pointLightColor.red, factor.red[SPECULAR]);
-    const green = ambientLightColor.green * factor.green[AMBIENT]
-        + pointLightColor.green * factor.green[DIFFUSE] * (diffuseReflectionFactor)
-        + calculateSpecularColorValue(normalizedSurfaceNormal, normalizedLightVector, pointLightColor.green, factor.green[SPECULAR]);
-    const blue = ambientLightColor.blue * factor.blue[AMBIENT]
-        + pointLightColor.blue * factor.blue[DIFFUSE] * (diffuseReflectionFactor)
-        + calculateSpecularColorValue(normalizedSurfaceNormal, normalizedLightVector, pointLightColor.blue, factor.blue[SPECULAR]);
+    const red = ambientLightColor.red * color.red[AMBIENT]
+        + pointLightColor.red * color.red[DIFFUSE] * (diffuseReflectionFactor);
+        + calculateSpecularColorValue(normalizedSurfaceNormal, normalizedLightVector, pointLightColor.red, color.red[SPECULAR]);
+    const green = ambientLightColor.green * color.green[AMBIENT]
+        + pointLightColor.green * color.green[DIFFUSE] * (diffuseReflectionFactor)
+        + calculateSpecularColorValue(normalizedSurfaceNormal, normalizedLightVector, pointLightColor.green, color.green[SPECULAR]);
+    const blue = ambientLightColor.blue * color.blue[AMBIENT]
+        + pointLightColor.blue * color.blue[DIFFUSE] * (diffuseReflectionFactor)
+        + calculateSpecularColorValue(normalizedSurfaceNormal, normalizedLightVector, pointLightColor.blue, color.blue[SPECULAR]);
 
     return `${Math.floor(red)} ${Math.floor(green)} ${Math.floor(blue)}`;
 }
@@ -72,5 +85,6 @@ function calculateSpecularColorValue(normalizedSurfaceNormal: Vector, normalized
         // no reflection
         return 0;
     }
-    return colorValue * reflectionFactor * Math.pow(factor, 4);
+    const shininess = 4;
+    return colorValue * reflectionFactor * Math.pow(factor, shininess);
 }
