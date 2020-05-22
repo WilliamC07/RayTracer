@@ -1,0 +1,22 @@
+{
+  "name": "graphics-final",
+  "version": "1.0.0",
+  "description": "Graphics Engine handling Ray Tracing and Phong shading along with .obj handling",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "echo \"Make sure tsc -w is running\" && make dev"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/WilliamC07/graphics-final.git"
+  },
+  "author": "William Cao Period 10",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/WilliamC07/graphics-final/issues"
+  },
+  "homepage": "https://github.com/WilliamC07/graphics-final#readme",
+  "dependencies": {
+    "chalk": "^4.0.0"
+  }
+}

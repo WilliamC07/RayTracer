@@ -7,6 +7,7 @@
 .idea
 *.obj
 *.js.map
+node_modules
 
 #python
 # Byte-compiled / optimized / DLL files
