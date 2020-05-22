@@ -6,6 +6,8 @@ import {calculateColor, Color, SymbolColor, viewingVector} from "./render/lighti
 import {Transformer} from "./transformations";
 import {dotProduct} from "./render/ray";
 
+export enum Shading {raytrace, phong}
+
 export default class Image {
     public columns: number;
     public rows: number;
@@ -15,17 +17,20 @@ export default class Image {
      */
     private zBuffer: number[][];
     private static tempIndex = 0;
+    private shading: Shading;
 
     /**
      * Creates a new image.
      * @param columns Amount of rows
      * @param rows Amount of columns
+     * @param shading Type of rendering
      */
-    constructor(columns: number, rows: number){
+    constructor(columns: number, rows: number, shading: Shading = Shading.phong){
         this.columns = columns;
         this.rows = rows;
         this.matrix = new Array(rows);
         this.zBuffer = new Array(rows);
+        this.shading = shading;
         for(let row = 0; row < rows; row++){
             this.matrix[row] = new Array(columns);
             this.zBuffer[row] = new Array(columns).fill(-Infinity);

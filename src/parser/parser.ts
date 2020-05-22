@@ -13,13 +13,14 @@ import {
     Transformer,
     createTransformer, deepCopyTransformer
 } from "../transformations";
-import Image from "../image";
+import Image, {Shading} from "../image";
 import {bezierCurve, drawCircle, hermiteCurve, drawBox, drawSphere, drawTorus} from "../render/draw";
 import {objParser} from "./obj-parser";
 import {exec, spawn} from "child_process";
 import path from 'path'
 import {addColor, SymbolColor} from "../render/lighting";
 import fs from 'fs';
+import chalk from "chalk";
 
 // MDL file typings
 interface MDLCommand {
@@ -28,6 +29,7 @@ interface MDLCommand {
     readonly constants?: string, // refer to MDLSymbol
     readonly knob?: string|null,
     readonly cs?: string|null,
+    readonly shade_type?: keyof typeof Shading
 }
 type MDLSymbol = [
     string, // "constants"
@@ -122,7 +124,7 @@ function parseAnimationMDL(parsedMDL: MDLObject){
         errors.push("No basename set.");
     }
     if(varyCommands.length === 0){
-        console.log("\x1b[33m", "No vary commands");
+        console.log(chalk.yellow("No vary commands"));
     }
     if(errors.length !== 0){
         printAndDie(errors.join("\n"));
@@ -163,8 +165,15 @@ function parseStaticMDL(parsedMDL: MDLObject){
 
 function generateImage(parsedMDL: MDLObject, frames: number, knobsForFrame?: Map<string, number>[], basename?: string): Promise<void>[] {
     const polygonMatrix = createPolygonMatrix();
-    const image = new Image(500, 500);
+    let image = new Image(500, 500);
     const fileWritingPromises: Promise<void>[] = [];
+
+    // handle preliminary details (shading type)
+    for(const command of parsedMDL.commands){
+        if(command.op === "shading"){
+            image = new Image(500, 500, Shading[command.shade_type]);
+        }
+    }
 
     for (let frame = 0; frame < frames; frame++) {
         const transformationStack: Transformer[] = [createTransformer()];  // initialize with identity transformation
@@ -224,6 +233,8 @@ function generateImage(parsedMDL: MDLObject, frames: number, knobsForFrame?: Map
                 case 'basename':
                     break;
                 case 'vary':
+                    break;
+                case 'shading':
                     break;
 
                 default: {
@@ -352,7 +363,6 @@ function draw(image: Image, polygonMatrix: PolygonMatrix, colorName?: string){
 }
 
 function printAndDie(message: string){
-    console.log("\x1b[31m", message);
-    console.log("\x1b[31m", "exiting");
+    console.log(chalk.red(message));
     process.exit();
 }
