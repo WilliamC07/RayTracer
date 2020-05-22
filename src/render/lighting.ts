@@ -16,7 +16,6 @@ colors.set(DEFAULT_WHITE, {
     blue: [0.2, 0.5, 0.5]
 });
 export function addColor(name: string, color: SymbolColor){
-    console.log("color: ", name, color);
     colors.set(name, color);
 }
 

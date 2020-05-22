@@ -13,7 +13,7 @@ import {
     Transformer,
     createTransformer, deepCopyTransformer
 } from "../transformations";
-import Image, {Shading} from "../image";
+import {PhongImage, RayTraceImage, Image} from "../render/image";
 import {bezierCurve, drawCircle, hermiteCurve, drawBox, drawSphere, drawTorus} from "../render/draw";
 import {objParser} from "./obj-parser";
 import {exec, spawn} from "child_process";
@@ -29,7 +29,7 @@ interface MDLCommand {
     readonly constants?: string, // refer to MDLSymbol
     readonly knob?: string|null,
     readonly cs?: string|null,
-    readonly shade_type?: keyof typeof Shading
+    readonly shade_type?: string
 }
 type MDLSymbol = [
     string, // "constants"
@@ -165,13 +165,13 @@ function parseStaticMDL(parsedMDL: MDLObject){
 
 function generateImage(parsedMDL: MDLObject, frames: number, knobsForFrame?: Map<string, number>[], basename?: string): Promise<void>[] {
     const polygonMatrix = createPolygonMatrix();
-    let image = new Image(500, 500);
+    let image: Image = new PhongImage(500, 500);
     const fileWritingPromises: Promise<void>[] = [];
 
     // handle preliminary details (shading type)
     for(const command of parsedMDL.commands){
         if(command.op === "shading"){
-            image = new Image(500, 500, Shading[command.shade_type]);
+            image = new RayTraceImage(500, 500);
         }
     }
 

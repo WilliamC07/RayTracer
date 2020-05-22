@@ -1,5 +1,4 @@
 import {Point, createPolygonMatrix, toInteger, PolygonMatrix} from "../matrix";
-import Image from "../image";
 import {addPolygon} from "../matrix";
 import fs from 'fs';
 

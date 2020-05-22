@@ -1,8 +1,4 @@
 import parseMDLFile from "./parser/parser";
-import Image from "./image";
-import {createTransformer, toIdentity, toScale} from "./transformations";
-import {createEdgeMatrix, createPolygonMatrix} from "./matrix";
-import {objParser} from "./parser/obj-parser";
 import {performance} from "perf_hooks";
 import fs from 'fs';
 

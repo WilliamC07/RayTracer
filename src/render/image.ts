@@ -1,23 +1,15 @@
-import {createPolygonMatrix, Edge, EdgeMatrix, PolygonMatrix} from "./matrix";
+import {EdgeMatrix, PolygonMatrix} from "../matrix";
 import {exec} from "child_process";
 import {promises as fs} from "fs";
-import {calculateSurfaceNormal, Vector, vectorize} from "./utility/math-utility";
-import {calculateColor, Color, SymbolColor, viewingVector} from "./render/lighting";
-import {Transformer} from "./transformations";
-import {dotProduct} from "./render/ray";
+import {calculateSurfaceNormal, Vector, vectorize} from "../utility/math-utility";
+import {calculateColor, viewingVector} from "./lighting";
+import {dotProduct} from "./ray";
 
-export enum Shading {raytrace, phong}
-
-export default class Image {
-    public columns: number;
-    public rows: number;
-    public matrix: string[][];
-    /**
-     * Keep track of the z coordinate of objected drawn at each pixel
-     */
-    private zBuffer: number[][];
-    private static tempIndex = 0;
-    private shading: Shading;
+export abstract class Image {
+    public readonly columns: number;
+    public readonly rows: number;
+    protected matrix: string[][];
+    protected static tempIndex = 0;
 
     /**
      * Creates a new image.
@@ -25,113 +17,21 @@ export default class Image {
      * @param rows Amount of columns
      * @param shading Type of rendering
      */
-    constructor(columns: number, rows: number, shading: Shading = Shading.phong){
+    protected constructor(columns: number, rows: number){
         this.columns = columns;
         this.rows = rows;
         this.matrix = new Array(rows);
-        this.zBuffer = new Array(rows);
-        this.shading = shading;
         for(let row = 0; row < rows; row++){
             this.matrix[row] = new Array(columns);
-            this.zBuffer[row] = new Array(columns).fill(-Infinity);
         }
     }
 
-    public drawPolygons(polygons: PolygonMatrix, colorName?: string){
-        for(let point = 0; point < polygons.length - 2; point+=3){
-            const p0 = polygons[point];
-            const p1 = polygons[point + 1];
-            const p2 = polygons[point + 2];
-
-            // Find surface normal if we were to render the triangle
-            const vector0: Vector = vectorize(p1, p0);
-            const vector1: Vector = vectorize(p2, p0);
-            const surfaceNormal: Vector = calculateSurfaceNormal(vector0, vector1);
-
-            // For the triangle to be drawn, the angle between the surfaceNormal and viewVector needs to be
-            // between -90 degrees and 90 degrees
-            if(dotProduct(surfaceNormal, viewingVector) > 0) {
-                const color = calculateColor(surfaceNormal, colorName);
-
-                // organize the points of the triangle by their y values
-                let [bottom, middle, top] = [p0, p1, p2];
-                if(bottom[1] > top[1]){
-                    [bottom, top] = [top, bottom];
-                }
-                if(bottom[1] > middle[1]){
-                    [bottom, middle] = [middle, bottom];
-                }
-                if(middle[1] > top[1]){
-                    [middle, top] = [top, middle];
-                }
-
-                let y = bottom[1];
-                let x0 = bottom[0];
-                let x1 = bottom[0];
-                let z0 = bottom[2];
-                let z1 = bottom[2];
-
-                // change in x
-                const startXDelta = (top[0] - bottom[0]) / (top[1] - bottom[1] + 1);
-                let endXDelta = (middle[0] - bottom[0]) / (middle[1] - bottom[1] + 1);
-                const endXDeltaFlip = (top[0] - middle[0]) / (top[1] - middle[1] + 1);
-
-                let startZDelta = (top[2] - bottom[2]) / (top[1] - bottom[1] + 1);
-                let endZDelta = (middle[2] - bottom[2]) / (middle[1] - bottom[1] + 1);
-                let endZDeltaFlip = (top[2] - middle[2]) / (top[1] - middle[1] + 1);
-
-                while(y <= top[1]){
-                    this.drawHorizontal(y, Math.floor(x0), Math.floor(x1), z0, z1, color.toString());
-                    x0 += startXDelta;
-                    x1 += endXDelta;
-                    z0 += startZDelta;
-                    z1 += endZDelta;
-                    // We passed a vertex, so we need to change what deltaX and deltaZ we are using
-                    if(y === middle[1]){
-                        endXDelta = endXDeltaFlip;
-                        endZDelta = endZDeltaFlip;
-                        x1 = middle[0];
-                        z1 = middle[2];
-                    }
-                    y++;
-                }
-            }
-        }
-    }
-
-    /**
-     * To be used with drawPolygon() for Scanline algorithm. Draws a horizontal line between (x0, y) and (x1, y).
-     * @param y
-     * @param x0
-     * @param x1
-     * @param color
-     */
-    private drawHorizontal(y: number, x0: number, x1: number, zStart: number, zEnd: number, color: string){
-        if(x0 > x1){
-            this.drawHorizontal(y, x1, x0, zEnd, zStart, color);
-            return;
-        }
-
-        const pixelInLine = x1 - x0 + 1; // add one since we might be drawing a 1 pixel long horizontal
-        let deltaZ = (zEnd - zStart) / pixelInLine;
-        while(x0 <= x1){
-            this.plot(x0, y, zStart, color);
-            zStart += deltaZ;
-            x0++;
-        }
-    }
+    public abstract drawPolygons(polygons: PolygonMatrix, colorName?: string): void;
 
     /**
      * Clears all the points plotted on the image.
      */
-    public clear(){
-        for(let row = 0; row < this.rows; row++){
-            for(let column = 0; column < this.columns; column++){
-                this.matrix[row][column] = "";
-                this.zBuffer[row][column] = -Infinity;
-            }
-        }
-    }
+    public abstract clear(): void;
 
     /**
      * Saves the file in the current directory with the given filename and file type. File type determined from
@@ -173,14 +73,7 @@ export default class Image {
      * @param z Z value of object that will be drawn
      * @param color String representation of a color P3
      */
-    private plot(col: number, row: number, z: number, color: string){
-        row = this.rows - 1 - row;
-        if(col >= 0 && col < this.columns && row >= 0 && row < this.rows && z >= this.zBuffer[row][col]){
-            // row should be counting from the bottom of the screen
-            this.matrix[row][col] = color;
-            this.zBuffer[row][col] = z;
-        }
-    }
+    protected abstract plot(col: number, row: number, z: number, color: string): void;
 
     /**
      * Converts this image to a string
@@ -308,6 +201,145 @@ export default class Image {
         for(let pointIndex = 0; pointIndex < edgeMatrix.length; pointIndex += 2){
             this.line(edgeMatrix[pointIndex][0], edgeMatrix[pointIndex][1], edgeMatrix[pointIndex][2],
                 edgeMatrix[pointIndex + 1][0], edgeMatrix[pointIndex + 1][1], edgeMatrix[pointIndex + 1][2], "0 0 0");
+        }
+    }
+}
+
+export class RayTraceImage extends Image {
+    constructor(columns: number, rows: number) {
+        super(columns, rows);
+    }
+
+    public clear() {
+        for (let row = 0; row < this.rows; row++) {
+            for (let column = 0; column < this.columns; column++) {
+                this.matrix[row][column] = "";
+            }
+        }
+    }
+
+    protected plot(col: number, row: number, z: number, color: string): void {
+        throw new Error("Method not implemented.");
+    }
+
+    public drawPolygons(polygons: PolygonMatrix, colorName?: string): void {
+        throw new Error("Method not implemented.");
+    }
+}
+
+export class PhongImage extends Image{
+    /**
+     * Keep track of the z coordinate of objected drawn at each pixel
+     */
+    protected zBuffer: number[][];
+
+    constructor(columns: number, rows: number){
+        super(columns, rows);
+        this.zBuffer = new Array(rows);
+        for(let row = 0; row < rows; row++){
+            this.zBuffer[row] = new Array(columns).fill(-Infinity);
+        }
+    }
+
+    public drawPolygons(polygons: PolygonMatrix, colorName?: string){
+        for(let point = 0; point < polygons.length - 2; point+=3){
+            const p0 = polygons[point];
+            const p1 = polygons[point + 1];
+            const p2 = polygons[point + 2];
+
+            // Find surface normal if we were to render the triangle
+            const vector0: Vector = vectorize(p1, p0);
+            const vector1: Vector = vectorize(p2, p0);
+            const surfaceNormal: Vector = calculateSurfaceNormal(vector0, vector1);
+
+            // For the triangle to be drawn, the angle between the surfaceNormal and viewVector needs to be
+            // between -90 degrees and 90 degrees
+            if(dotProduct(surfaceNormal, viewingVector) > 0) {
+                const color = calculateColor(surfaceNormal, colorName);
+
+                // organize the points of the triangle by their y values
+                let [bottom, middle, top] = [p0, p1, p2];
+                if(bottom[1] > top[1]){
+                    [bottom, top] = [top, bottom];
+                }
+                if(bottom[1] > middle[1]){
+                    [bottom, middle] = [middle, bottom];
+                }
+                if(middle[1] > top[1]){
+                    [middle, top] = [top, middle];
+                }
+
+                let y = bottom[1];
+                let x0 = bottom[0];
+                let x1 = bottom[0];
+                let z0 = bottom[2];
+                let z1 = bottom[2];
+
+                // change in x
+                const startXDelta = (top[0] - bottom[0]) / (top[1] - bottom[1] + 1);
+                let endXDelta = (middle[0] - bottom[0]) / (middle[1] - bottom[1] + 1);
+                const endXDeltaFlip = (top[0] - middle[0]) / (top[1] - middle[1] + 1);
+
+                let startZDelta = (top[2] - bottom[2]) / (top[1] - bottom[1] + 1);
+                let endZDelta = (middle[2] - bottom[2]) / (middle[1] - bottom[1] + 1);
+                let endZDeltaFlip = (top[2] - middle[2]) / (top[1] - middle[1] + 1);
+
+                while(y <= top[1]){
+                    this.drawHorizontal(y, Math.floor(x0), Math.floor(x1), z0, z1, color.toString());
+                    x0 += startXDelta;
+                    x1 += endXDelta;
+                    z0 += startZDelta;
+                    z1 += endZDelta;
+                    // We passed a vertex, so we need to change what deltaX and deltaZ we are using
+                    if(y === middle[1]){
+                        endXDelta = endXDeltaFlip;
+                        endZDelta = endZDeltaFlip;
+                        x1 = middle[0];
+                        z1 = middle[2];
+                    }
+                    y++;
+                }
+            }
+        }
+    }
+
+    /**
+     * To be used with drawPolygon() for Scanline algorithm. Draws a horizontal line between (x0, y) and (x1, y).
+     * @param y
+     * @param x0
+     * @param x1
+     * @param color
+     */
+    private drawHorizontal(y: number, x0: number, x1: number, zStart: number, zEnd: number, color: string){
+        if(x0 > x1){
+            this.drawHorizontal(y, x1, x0, zEnd, zStart, color);
+            return;
+        }
+
+        const pixelInLine = x1 - x0 + 1; // add one since we might be drawing a 1 pixel long horizontal
+        let deltaZ = (zEnd - zStart) / pixelInLine;
+        while(x0 <= x1){
+            this.plot(x0, y, zStart, color);
+            zStart += deltaZ;
+            x0++;
+        }
+    }
+
+    public clear(){
+        for(let row = 0; row < this.rows; row++) {
+            for (let column = 0; column < this.columns; column++) {
+                this.matrix[row][column] = "";
+                this.zBuffer[row][column] = -Infinity;
+            }
+        }
+    }
+
+    protected plot(col: number, row: number, z: number, color: string){
+        row = this.rows - 1 - row;
+        if(col >= 0 && col < this.columns && row >= 0 && row < this.rows && z >= this.zBuffer[row][col]){
+            // row should be counting from the bottom of the screen
+            this.matrix[row][col] = color;
+            this.zBuffer[row][col] = z;
         }
     }
 }
