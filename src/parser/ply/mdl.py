@@ -323,7 +323,9 @@ def p_command_shading(p):
 
 def p_command_camera(p):
     "command : CAMERA NUMBER NUMBER NUMBER NUMBER NUMBER NUMBER"
-    symbols['camera'] = ['camera', {'eye': p[2:4], 'aim': p[4:]} ]
+    symbols['camera'] = ['camera', {'eye': p[2:5], 'aim': p[5:]} ]
+    for index, value in enumerate(p):
+        print(f"{index}: {value}")
     commands.append({'op':p[1], 'args':None})
 
 def p_command_generate_rayfiles(p):

@@ -21,11 +21,14 @@ export function addColor(name: string, color: SymbolColor){
 
 // the vector the user is looking from
 export const viewingVector: Vector = [0, 0, 1];
-export function setViewingVector(x: number, y: number, z: number){
-    viewingVector[0] = x;
-    viewingVector[1] = y;
-    viewingVector[2] = z;
+
+export let eyeVector: Vector = [0, 0, 0];
+let aimVector: Vector = [0, 0, -1]; // not used
+export function setEyeAndAimVector(camera: Vector, aim: Vector){
+    eye = camera;
+    aimVector = aim;
 }
+
 
 // light
 export const lightVector: Vector = [0.5, 0.75, 1];

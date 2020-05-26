@@ -18,7 +18,7 @@ import {bezierCurve, drawCircle, hermiteCurve, drawBox, drawSphere, drawTorus} f
 import {objParser} from "./obj-parser";
 import {exec, spawn} from "child_process";
 import path from 'path'
-import {addColor, SymbolColor} from "../render/lighting";
+import {addColor, setEyeAndAimVector, SymbolColor} from "../render/lighting";
 import fs from 'fs';
 import chalk from "chalk";
 
@@ -30,6 +30,8 @@ interface MDLCommand {
     readonly knob?: string|null,
     readonly cs?: string|null,
     readonly shade_type?: string
+    readonly eye?: [number, number, number],
+    readonly aim?: [number, number, number]
 }
 type MDLSymbol = [
     string, // "constants"
@@ -172,6 +174,9 @@ function generateImage(parsedMDL: MDLObject, frames: number, knobsForFrame?: Map
     for(const command of parsedMDL.commands){
         if(command.op === "shading"){
             image = new RayTraceImage(500, 500);
+        }else if(command.op === "camera"){
+            console.log(chalk.yellow("we ignore the aim!"));
+            setEyeAndAimVector(command.eye, command.aim);
         }
     }
 
