@@ -253,8 +253,12 @@ export class RayTraceImage extends Image {
         const horizontalRay: Ray = [viewport_width, 0, 0];
         const verticalRay: Ray = [0, viewport_height, 0];
 
-        // camera - horizontal/2 - vertical/2 - [0, 0, focalLength
-        const lowerLeftCornerRay: Ray = [-1 , -1, -1];
+        // camera - horizontal/2 - vertical/2 - [0, 0, focalLength]
+        const scaledHorizontal = scaleRay(horizontalRay, .5);
+        const scaledVertical = scaleRay(verticalRay, .5);
+        let lowerLeftCornerRay = subtractRay(cameraPosition, scaledHorizontal);
+        lowerLeftCornerRay = subtractRay(lowerLeftCornerRay, scaledVertical);
+        lowerLeftCornerRay = subtractRay(lowerLeftCornerRay, [0, 0, focalLength]);
 
         for (let row = this.rows - 1; row >= 0; row--) {
             for (let column = 0; column < this.columns; column++) {
@@ -267,7 +271,11 @@ export class RayTraceImage extends Image {
                 if (hitSphere([0, 0, -1], 0.5, cameraPosition, primaryRayDirection)) {
                     this.plot(column, row, 1, "0 0 0");
                 } else {
-                    this.plot(column, row, 1, "255 255 255");
+                    const unit = unitRay(primaryRayDirection);
+                    const t = 0.5 * (unit[1] + 1);
+                    const color = addRay(scaleRay([1, 1, 1], (1 - t)), scaleRay([0.5, 0.7,1], t)).map(val => Math.floor(val * 255)).join(" ");
+
+                    this.plot(column, row, 1, color);
                 }
                 pixel++;
             }
