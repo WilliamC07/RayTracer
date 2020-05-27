@@ -1,9 +1,10 @@
-import {EdgeMatrix, PolygonMatrix} from "../matrix";
+import {createPolygonMatrix, EdgeMatrix, PolygonMatrix} from "../matrix";
 import {exec} from "child_process";
 import {promises as fs} from "fs";
-import {calculateSurfaceNormal, Vector, vectorize} from "../utility/math-utility";
-import {calculateColor, viewingVector} from "./lighting";
-import {dotProduct} from "./ray";
+import {calculateSurfaceNormal, toRadians, Vector, vectorize} from "../utility/math-utility";
+import {calculateColor, eyeVector, viewingVector} from "./lighting";
+import {addRay, dotProduct, Ray, scaleRay, subtractRay, unitRay} from "./ray";
+import chalk from "chalk";
 
 export abstract class Image {
     public readonly columns: number;
@@ -206,8 +207,15 @@ export abstract class Image {
 }
 
 export class RayTraceImage extends Image {
+    /**
+     * [x, y, z, normal]
+     */
+    private polygons: [number, number, number, number][];
+    private fov: number = toRadians(25);
+
     constructor(columns: number, rows: number) {
         super(columns, rows);
+        this.polygons = createPolygonMatrix();
     }
 
     public clear() {
@@ -219,12 +227,62 @@ export class RayTraceImage extends Image {
     }
 
     protected plot(col: number, row: number, z: number, color: string): void {
-        throw new Error("Method not implemented.");
+        // no need to check bounds since our ray tracer sends ray to each pixel, unlike Phong, which calulates color
+        // for each polygon (triangle)
+        this.matrix[row][col] = color;
     }
 
     public drawPolygons(polygons: PolygonMatrix, colorName?: string): void {
-        throw new Error("Method not implemented.");
+        this.rayTracePolygons();
     }
+
+    public async saveToDisk(fileName: string) {
+        // drawing polygons doesn't actually draw on to the picture, we must ray trace to generate the images
+        this.rayTracePolygons();
+        super.saveToDisk(fileName);
+    }
+
+    private rayTracePolygons() {
+        let pixel = 0;
+        // the camera is located at the origin
+        const cameraPosition: Ray = [0, 0, 0];
+        const viewport_height = 2;
+        const viewport_width = 2;
+
+        const focalLength = 1;
+        const horizontalRay: Ray = [viewport_width, 0, 0];
+        const verticalRay: Ray = [0, viewport_height, 0];
+
+        // camera - horizontal/2 - vertical/2 - [0, 0, focalLength
+        const lowerLeftCornerRay: Ray = [-1 , -1, -1];
+
+        for (let row = this.rows - 1; row >= 0; row--) {
+            for (let column = 0; column < this.columns; column++) {
+                const u = column / (this.columns - 1);
+                const v = row / (this.rows - 1);
+
+                const directionOffsetFromCamera = subtractRay(addRay(scaleRay(horizontalRay, u), scaleRay(verticalRay, v)), cameraPosition);
+                const primaryRayDirection = addRay(lowerLeftCornerRay, directionOffsetFromCamera);
+
+                if (hitSphere([0, 0, -1], 0.5, cameraPosition, primaryRayDirection)) {
+                    this.plot(column, row, 1, "0 0 0");
+                } else {
+                    this.plot(column, row, 1, "255 255 255");
+                }
+                pixel++;
+            }
+            console.log(chalk.green(`Finished pixel ${pixel} of ${500 * 500} (${(pixel) / (500 * 500)})`));
+        }
+    }
+}
+
+function hitSphere(center: Vector, radius: number, originRay: Ray, directionRay: Ray){
+    const oc = subtractRay(originRay, center);
+    const a = dotProduct(directionRay, directionRay);
+    const b = 2 * dotProduct(oc, directionRay);
+    const c = dotProduct(oc, oc) - radius * radius;
+    const discriminat =  b * b - 4 * a * c;
+    return discriminat > 0;
 }
 
 export class PhongImage extends Image{

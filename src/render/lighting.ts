@@ -25,7 +25,7 @@ export const viewingVector: Vector = [0, 0, 1];
 export let eyeVector: Vector = [0, 0, 0];
 let aimVector: Vector = [0, 0, -1]; // not used
 export function setEyeAndAimVector(camera: Vector, aim: Vector){
-    eye = camera;
+    eyeVector = camera;
     aimVector = aim;
 }
 

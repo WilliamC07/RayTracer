@@ -1,0 +1,5 @@
+// we ignore the aim
+shading raytrace
+push
+sphere 0 0 0 50
+save asd.png
