@@ -229,11 +229,12 @@ export class RayTraceImage extends Image {
     protected plot(col: number, row: number, z: number, color: string): void {
         // no need to check bounds since our ray tracer sends ray to each pixel, unlike Phong, which calulates color
         // for each polygon (triangle)
+        row = this.rows - 1 - row;
         this.matrix[row][col] = color;
     }
 
     public drawPolygons(polygons: PolygonMatrix, colorName?: string): void {
-        this.rayTracePolygons();
+        //this.rayTracePolygons();
     }
 
     public async saveToDisk(fileName: string) {
@@ -265,15 +266,16 @@ export class RayTraceImage extends Image {
                 const u = column / (this.columns - 1);
                 const v = row / (this.rows - 1);
 
-                const directionOffsetFromCamera = subtractRay(addRay(scaleRay(horizontalRay, u), scaleRay(verticalRay, v)), cameraPosition);
-                const primaryRayDirection = addRay(lowerLeftCornerRay, directionOffsetFromCamera);
+                let primaryRayDirection = addRay(lowerLeftCornerRay, scaleRay(horizontalRay, u));
+                primaryRayDirection = addRay(primaryRayDirection, scaleRay(verticalRay, v));
+                primaryRayDirection = subtractRay(primaryRayDirection, cameraPosition);
 
                 if (hitSphere([0, 0, -1], 0.5, cameraPosition, primaryRayDirection)) {
                     this.plot(column, row, 1, "0 0 0");
                 } else {
                     const unit = unitRay(primaryRayDirection);
                     const t = 0.5 * (unit[1] + 1);
-                    const color = addRay(scaleRay([1, 1, 1], (1 - t)), scaleRay([0.5, 0.7,1], t)).map(val => Math.floor(val * 255)).join(" ");
+                    const color = addRay(scaleRay([1, 1, 1], (1 - t)), scaleRay([0.5, 0.7, 1], t)).map(val => Math.floor(val * 255)).join(" ");
 
                     this.plot(column, row, 1, color);
                 }
