@@ -3,7 +3,7 @@ import {exec} from "child_process";
 import {promises as fs} from "fs";
 import {calculateSurfaceNormal, toRadians, Vector, vectorize} from "../utility/math-utility";
 import {calculateColor, eyeVector, viewingVector} from "./lighting";
-import {addRay, dotProduct, Ray, scaleRay, subtractRay, unitRay} from "./ray";
+import {addRay, dotProduct, Ray, rayAtTime, rayLengthSquared, scaleRay, subtractRay, unitRay} from "./ray";
 import chalk from "chalk";
 
 export abstract class Image {
@@ -270,8 +270,13 @@ export class RayTraceImage extends Image {
                 primaryRayDirection = addRay(primaryRayDirection, scaleRay(verticalRay, v));
                 primaryRayDirection = subtractRay(primaryRayDirection, cameraPosition);
 
-                if (hitSphere([0, 0, -1], 0.5, cameraPosition, primaryRayDirection)) {
-                    this.plot(column, row, 1, "0 0 0");
+                const sphereCenter: Ray = [0, 0, -1];
+
+                const intersectionTime = hitSphere(sphereCenter, 0.5, cameraPosition, primaryRayDirection);
+                if (intersectionTime > 0) {
+                    const normal = unitRay(subtractRay(rayAtTime(cameraPosition, primaryRayDirection, intersectionTime), sphereCenter));
+                    const color = normal.map(val => Math.floor((val + 1) * .5 * 255)).join(" ");
+                    this.plot(column, row, 1, color);
                 } else {
                     const unit = unitRay(primaryRayDirection);
                     const t = 0.5 * (unit[1] + 1);
@@ -286,13 +291,26 @@ export class RayTraceImage extends Image {
     }
 }
 
-function hitSphere(center: Vector, radius: number, originRay: Ray, directionRay: Ray){
+/**
+ * Returns the normal of the intersection
+ * @param center
+ * @param radius
+ * @param originRay
+ * @param directionRay
+ */
+function hitSphere(center: Vector, radius: number, originRay: Ray, directionRay: Ray): number{
+    // quadratic formula to determine if ray intersects sphere
     const oc = subtractRay(originRay, center);
-    const a = dotProduct(directionRay, directionRay);
-    const b = 2 * dotProduct(oc, directionRay);
-    const c = dotProduct(oc, oc) - radius * radius;
-    const discriminat =  b * b - 4 * a * c;
-    return discriminat > 0;
+    const a = rayLengthSquared(directionRay);
+    const half_b = dotProduct(oc, directionRay);
+    const c = rayLengthSquared(oc) - radius * radius;
+    const discriminant = half_b * half_b - a * c;
+
+    if(discriminant < 0){
+        return -1;
+    }else{
+        return (-half_b - Math.sqrt(discriminant)) / a
+    }
 }
 
 export class PhongImage extends Image{
