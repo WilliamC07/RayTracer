@@ -5,6 +5,7 @@ import {calculateSurfaceNormal, toRadians, Vector, vectorize} from "../utility/m
 import {calculateColor, eyeVector, viewingVector} from "./lighting";
 import {addRay, dotProduct, Ray, rayAtTime, rayLengthSquared, scaleRay, subtractRay, unitRay} from "./ray";
 import chalk from "chalk";
+import {HitRecords, Sphere} from "./hittable";
 
 export abstract class Image {
     public readonly columns: number;
@@ -261,6 +262,8 @@ export class RayTraceImage extends Image {
         lowerLeftCornerRay = subtractRay(lowerLeftCornerRay, scaledVertical);
         lowerLeftCornerRay = subtractRay(lowerLeftCornerRay, [0, 0, focalLength]);
 
+        const sphere = new Sphere([0, 0, -1], .5);
+
         for (let row = this.rows - 1; row >= 0; row--) {
             for (let column = 0; column < this.columns; column++) {
                 const u = column / (this.columns - 1);
@@ -270,14 +273,17 @@ export class RayTraceImage extends Image {
                 primaryRayDirection = addRay(primaryRayDirection, scaleRay(verticalRay, v));
                 primaryRayDirection = subtractRay(primaryRayDirection, cameraPosition);
 
-                const sphereCenter: Ray = [0, 0, -1];
+                const hitRecords: HitRecords = {
+                    time: 0,
+                    positionOfIntersection: undefined,
+                    normal: undefined
+                };
 
-                const intersectionTime = hitSphere(sphereCenter, 0.5, cameraPosition, primaryRayDirection);
-                if (intersectionTime > 0) {
-                    const normal = unitRay(subtractRay(rayAtTime(cameraPosition, primaryRayDirection, intersectionTime), sphereCenter));
+                if(sphere.hit(cameraPosition, primaryRayDirection, -Infinity, Infinity, hitRecords)){
+                    const normal = unitRay(hitRecords.normal);
                     const color = normal.map(val => Math.floor((val + 1) * .5 * 255)).join(" ");
                     this.plot(column, row, 1, color);
-                } else {
+                }else{
                     const unit = unitRay(primaryRayDirection);
                     const t = 0.5 * (unit[1] + 1);
                     const color = addRay(scaleRay([1, 1, 1], (1 - t)), scaleRay([0.5, 0.7, 1], t)).map(val => Math.floor(val * 255)).join(" ");
@@ -288,28 +294,6 @@ export class RayTraceImage extends Image {
             }
             console.log(chalk.green(`Finished pixel ${pixel} of ${500 * 500} (${(pixel) / (500 * 500)})`));
         }
-    }
-}
-
-/**
- * Returns the normal of the intersection
- * @param center
- * @param radius
- * @param originRay
- * @param directionRay
- */
-function hitSphere(center: Vector, radius: number, originRay: Ray, directionRay: Ray): number{
-    // quadratic formula to determine if ray intersects sphere
-    const oc = subtractRay(originRay, center);
-    const a = rayLengthSquared(directionRay);
-    const half_b = dotProduct(oc, directionRay);
-    const c = rayLengthSquared(oc) - radius * radius;
-    const discriminant = half_b * half_b - a * c;
-
-    if(discriminant < 0){
-        return -1;
-    }else{
-        return (-half_b - Math.sqrt(discriminant)) / a
     }
 }
 
