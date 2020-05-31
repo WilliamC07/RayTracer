@@ -5,7 +5,8 @@ import {calculateSurfaceNormal, toRadians, Vector, vectorize} from "../utility/m
 import {calculateColor, eyeVector, viewingVector} from "./lighting";
 import {addRay, dotProduct, Ray, rayAtTime, rayLengthSquared, scaleRay, subtractRay, unitRay} from "./ray";
 import chalk from "chalk";
-import {HitRecords, Sphere} from "./hittable";
+import {HitRecords, Hittable, Sphere} from "./hittable";
+import HittableList from "./hittableList";
 
 export abstract class Image {
     public readonly columns: number;
@@ -212,11 +213,13 @@ export class RayTraceImage extends Image {
      * [x, y, z, normal]
      */
     private polygons: [number, number, number, number][];
+    private hittableList: HittableList;
     private fov: number = toRadians(25);
 
     constructor(columns: number, rows: number) {
         super(columns, rows);
         this.polygons = createPolygonMatrix();
+        this.hittableList = new HittableList();
     }
 
     public clear() {
@@ -262,7 +265,8 @@ export class RayTraceImage extends Image {
         lowerLeftCornerRay = subtractRay(lowerLeftCornerRay, scaledVertical);
         lowerLeftCornerRay = subtractRay(lowerLeftCornerRay, [0, 0, focalLength]);
 
-        const sphere = new Sphere([0, 0, -1], .5);
+        this.hittableList.add(new Sphere([0, 0, -1], .5));
+        this.hittableList.add(new Sphere([0, -100.5, -1], 100));
 
         for (let row = this.rows - 1; row >= 0; row--) {
             for (let column = 0; column < this.columns; column++) {
@@ -273,15 +277,16 @@ export class RayTraceImage extends Image {
                 primaryRayDirection = addRay(primaryRayDirection, scaleRay(verticalRay, v));
                 primaryRayDirection = subtractRay(primaryRayDirection, cameraPosition);
 
+                // determine color
                 const hitRecords: HitRecords = {
-                    time: 0,
+                    faceNormal: undefined,
+                    isFrontFace: false,
+                    normal: undefined,
                     positionOfIntersection: undefined,
-                    normal: undefined
+                    time: 0
                 };
-
-                if(sphere.hit(cameraPosition, primaryRayDirection, -Infinity, Infinity, hitRecords)){
-                    const normal = unitRay(hitRecords.normal);
-                    const color = normal.map(val => Math.floor((val + 1) * .5 * 255)).join(" ");
+                if(this.hittableList.hit(cameraPosition, primaryRayDirection, 0, Infinity, hitRecords)){
+                    const color = addRay(hitRecords.normal, [1, 1, 1]).map(val => Math.floor(val * .5 * 255)).join(" ");
                     this.plot(column, row, 1, color);
                 }else{
                     const unit = unitRay(primaryRayDirection);
@@ -290,6 +295,7 @@ export class RayTraceImage extends Image {
 
                     this.plot(column, row, 1, color);
                 }
+
                 pixel++;
             }
             console.log(chalk.green(`Finished pixel ${pixel} of ${500 * 500} (${(pixel) / (500 * 500)})`));

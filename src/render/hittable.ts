@@ -3,7 +3,21 @@ import {dotProduct, Ray, rayAtTime, rayLengthSquared, scaleRay, subtractRay} fro
 export interface HitRecords {
     time: number;
     positionOfIntersection: Ray;
-    normal: Ray
+    normal: Ray,
+    isFrontFace: boolean,
+    faceNormal: Ray,
+}
+
+/**
+ * Determine if the intersection is from "inside" the sphere or hitting the outside surface of the sphere.
+ * @param origin
+ * @param direction
+ * @param outwardNormal
+ * @param hitRecords
+ */
+function calculateFaceNormal(origin: Ray, direction: Ray, outwardNormal: Ray, hitRecords: HitRecords){
+    hitRecords.isFrontFace = dotProduct(direction, outwardNormal) < 0;
+    hitRecords.normal = hitRecords.isFrontFace ? outwardNormal : scaleRay(outwardNormal, -1);
 }
 
 export abstract class Hittable {
@@ -35,6 +49,9 @@ export class Sphere extends Hittable {
                 hitRecords.time = time;
                 hitRecords.positionOfIntersection = rayAtTime(origin, direction, time);
                 hitRecords.normal = scaleRay(subtractRay(hitRecords.positionOfIntersection, this.center), 1/this.radius);
+                const outwardNormal = scaleRay(subtractRay(hitRecords.positionOfIntersection, this.center), 1/this.radius);
+                calculateFaceNormal(origin, direction, outwardNormal, hitRecords);
+
                 return true;
             }
             time = (-half_b + root) / a;
@@ -42,6 +59,9 @@ export class Sphere extends Hittable {
                 hitRecords.time = time;
                 hitRecords.positionOfIntersection = rayAtTime(origin, direction, time);
                 hitRecords.normal = scaleRay(subtractRay(hitRecords.positionOfIntersection, this.center), 1/this.radius);
+                const outwardNormal = scaleRay(subtractRay(hitRecords.positionOfIntersection, this.center), 1/this.radius);
+                calculateFaceNormal(origin, direction, outwardNormal, hitRecords);
+
                 return true;
             }
         }
