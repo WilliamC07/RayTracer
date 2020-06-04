@@ -27,3 +27,7 @@ export function normalizeVector(vector: Vector): Vector {
         vector[2] / magnitude
     ];
 }
+
+export function randomNumber(min: number, max: number){
+    return min + (max - min) * Math.random();
+}

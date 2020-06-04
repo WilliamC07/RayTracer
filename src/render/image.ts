@@ -7,6 +7,7 @@ import {addRay, dotProduct, Ray, rayAtTime, rayLengthSquared, scaleRay, subtract
 import chalk from "chalk";
 import {HitRecords, Hittable, Sphere} from "./hittable";
 import HittableList from "./hittableList";
+import Camera from "./camera";
 
 export abstract class Image {
     public readonly columns: number;
@@ -249,21 +250,8 @@ export class RayTraceImage extends Image {
 
     private rayTracePolygons() {
         let pixel = 0;
-        // the camera is located at the origin
-        const cameraPosition: Ray = [0, 0, 0];
-        const viewport_height = 2;
-        const viewport_width = 2;
 
-        const focalLength = 1;
-        const horizontalRay: Ray = [viewport_width, 0, 0];
-        const verticalRay: Ray = [0, viewport_height, 0];
-
-        // camera - horizontal/2 - vertical/2 - [0, 0, focalLength]
-        const scaledHorizontal = scaleRay(horizontalRay, .5);
-        const scaledVertical = scaleRay(verticalRay, .5);
-        let lowerLeftCornerRay = subtractRay(cameraPosition, scaledHorizontal);
-        lowerLeftCornerRay = subtractRay(lowerLeftCornerRay, scaledVertical);
-        lowerLeftCornerRay = subtractRay(lowerLeftCornerRay, [0, 0, focalLength]);
+        const camera = new Camera();
 
         this.hittableList.add(new Sphere([0, 0, -1], .5));
         this.hittableList.add(new Sphere([0, -100.5, -1], 100));
@@ -273,9 +261,7 @@ export class RayTraceImage extends Image {
                 const u = column / (this.columns - 1);
                 const v = row / (this.rows - 1);
 
-                let primaryRayDirection = addRay(lowerLeftCornerRay, scaleRay(horizontalRay, u));
-                primaryRayDirection = addRay(primaryRayDirection, scaleRay(verticalRay, v));
-                primaryRayDirection = subtractRay(primaryRayDirection, cameraPosition);
+                let primaryRayDirection = camera.getRay(u, v);
 
                 // determine color
                 const hitRecords: HitRecords = {
@@ -285,7 +271,7 @@ export class RayTraceImage extends Image {
                     positionOfIntersection: undefined,
                     time: 0
                 };
-                if(this.hittableList.hit(cameraPosition, primaryRayDirection, 0, Infinity, hitRecords)){
+                if(this.hittableList.hit([0, 0, 0], primaryRayDirection, 0, Infinity, hitRecords)){
                     const color = addRay(hitRecords.normal, [1, 1, 1]).map(val => Math.floor(val * .5 * 255)).join(" ");
                     this.plot(column, row, 1, color);
                 }else{
