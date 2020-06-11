@@ -1,8 +1,8 @@
 import {createPolygonMatrix, EdgeMatrix, PolygonMatrix} from "../matrix";
 import {exec} from "child_process";
 import {promises as fs} from "fs";
-import {calculateSurfaceNormal, toRadians, Vector, vectorize} from "../utility/math-utility";
-import {calculateColor, eyeVector, viewingVector} from "./lighting";
+import {calculateSurfaceNormal, clamp, toRadians, Vector, vectorize} from "../utility/math-utility";
+import {calculateColor, Color, eyeVector, viewingVector} from "./lighting";
 import {addRay, dotProduct, Ray, rayAtTime, rayLengthSquared, scaleRay, subtractRay, unitRay} from "./ray";
 import chalk from "chalk";
 import {HitRecords, Hittable, Sphere} from "./hittable";
@@ -216,6 +216,7 @@ export class RayTraceImage extends Image {
     private polygons: [number, number, number, number][];
     private hittableList: HittableList;
     private fov: number = toRadians(25);
+    private samplesPerPixel = 100;
 
     constructor(columns: number, rows: number) {
         super(columns, rows);
@@ -258,33 +259,48 @@ export class RayTraceImage extends Image {
 
         for (let row = this.rows - 1; row >= 0; row--) {
             for (let column = 0; column < this.columns; column++) {
-                const u = column / (this.columns - 1);
-                const v = row / (this.rows - 1);
+                const pixelColor = [0, 0, 0];
 
-                let primaryRayDirection = camera.getRay(u, v);
+                // sampling color
+                for(let sample = 0; sample < this.samplesPerPixel; sample++){
+                    const u = (column + Math.random()) / (this.columns - 1);
+                    const v = (row + Math.random()) / (this.rows - 1);
 
-                // determine color
-                const hitRecords: HitRecords = {
-                    faceNormal: undefined,
-                    isFrontFace: false,
-                    normal: undefined,
-                    positionOfIntersection: undefined,
-                    time: 0
-                };
-                if(this.hittableList.hit([0, 0, 0], primaryRayDirection, 0, Infinity, hitRecords)){
-                    const color = addRay(hitRecords.normal, [1, 1, 1]).map(val => Math.floor(val * .5 * 255)).join(" ");
-                    this.plot(column, row, 1, color);
-                }else{
-                    const unit = unitRay(primaryRayDirection);
-                    const t = 0.5 * (unit[1] + 1);
-                    const color = addRay(scaleRay([1, 1, 1], (1 - t)), scaleRay([0.5, 0.7, 1], t)).map(val => Math.floor(val * 255)).join(" ");
+                    let primaryRayDirection = camera.getRay(u, v);
 
-                    this.plot(column, row, 1, color);
+                    const color = this.getRayColor(primaryRayDirection);
+                    for(let i = 0; i < 3; i++){
+                        pixelColor[i] += color[i];
+                    }
+
                 }
 
+                const colorString = pixelColor.map(val => Math.floor(clamp(val / this.samplesPerPixel, 0, .999) * 255)).join(" ");
+                this.plot(column, row, 1, colorString);
                 pixel++;
             }
             console.log(chalk.green(`Finished pixel ${pixel} of ${500 * 500} (${(pixel) / (500 * 500)})`));
+        }
+    }
+
+    /**
+     * Returns [red, green, blue] with each value between 0 and 1
+     * @param ray
+     */
+    private getRayColor(ray: Ray): number[]{
+        const hitRecords: HitRecords = {
+            faceNormal: undefined,
+            isFrontFace: false,
+            normal: undefined,
+            positionOfIntersection: undefined,
+            time: 0
+        };
+        if(this.hittableList.hit([0, 0, 0], ray, 0, Infinity, hitRecords)){
+            return addRay(hitRecords.normal, [1, 1, 1]).map(val => val * .5);
+        }else{
+            const unit = unitRay(ray);
+            const t = 0.5 * (unit[1] + 1);
+            return addRay(scaleRay([1, 1, 1], (1 - t)), scaleRay([0.5, 0.7, 1], t));
         }
     }
 }

@@ -31,3 +31,15 @@ export function normalizeVector(vector: Vector): Vector {
 export function randomNumber(min: number, max: number){
     return min + (max - min) * Math.random();
 }
+
+/**
+ * Limits the value to the given range (open interval)
+ * @param value
+ * @param min
+ * @param max
+ */
+export function clamp(value: number, min: number, max: number){
+    if(value > max) return max;
+    if(value < min) return min;
+    return value;
+}
