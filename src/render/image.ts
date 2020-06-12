@@ -226,8 +226,8 @@ export class RayTraceImage extends Image {
     private polygons: [number, number, number, number][];
     private hittableList: HittableList;
     private fov: number = toRadians(25);
-    private samplesPerPixel = 100;
-    private maxRecursionDepth = 50;
+    private samplesPerPixel = 10;
+    private maxRecursionDepth = 10;
 
     constructor(columns: number, rows: number) {
         super(columns, rows);
@@ -286,8 +286,9 @@ export class RayTraceImage extends Image {
 
                 }
 
-                const colorString = pixelColor.map(val => Math.floor(clamp(val / this.samplesPerPixel, 0, .999) * 255)).join(" ");
+                const colorString = pixelColor.map(val => Math.floor(clamp(Math.sqrt(val / this.samplesPerPixel), 0, .999) * 255)).join(" ");
                 this.plot(column, row, 1, colorString);
+
                 pixel++;
             }
             console.log(chalk.green(`Finished pixel ${pixel} of ${500 * 500} (${(pixel) / (500 * 500)})`));
