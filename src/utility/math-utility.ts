@@ -43,3 +43,10 @@ export function clamp(value: number, min: number, max: number){
     if(value < min) return min;
     return value;
 }
+
+export function schlick(cosine: number, reflectionIndex: number){
+    // approximation for reflectivity w/ angle
+    let r0 = (1 - reflectionIndex) / (1+reflectionIndex);
+    r0 *= r0;
+    return r0 + (1 - r0) * Math.pow(1 - cosine, .5)
+}

@@ -10,6 +10,7 @@ import {
     unitRay
 } from "./render/ray";
 import {HitRecords} from "./render/hittable";
+import {schlick} from "./utility/math-utility";
 
 export abstract class Material {
     public abstract scatter(rayOrigin: Ray, rayDirection: Ray, hitRecords: HitRecords, scatterInfo: ScatterInfo): boolean;
@@ -61,6 +62,10 @@ export class Metal extends Material{
 export class Dielectric extends Material {
     private readonly reflectionIndex: number;
 
+    /**
+     *
+     * @param reflectionIndex Make negative radius of sphere for hollow glass sphere, positive for glass
+     */
     constructor(reflectionIndex: number){
         super();
         this.reflectionIndex = reflectionIndex;
@@ -84,6 +89,13 @@ export class Dielectric extends Material {
             return true;
         }
 
+        const reflectProb = schlick(cosTheta, etaiOverEtat);
+        if(Math.random() < reflectProb){
+            const reflected = reflect(unitDirection, hitRecords.normal);
+            scatterInfo.scatteredPosition = hitRecords.positionOfIntersection;
+            scatterInfo.scatteredDirection = reflected;
+            return true;
+        }
 
         const refracted = refract(unitDirection, hitRecords.normal, etaiOverEtat);
         scatterInfo.scatteredPosition = hitRecords.positionOfIntersection;
