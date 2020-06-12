@@ -31,7 +31,7 @@ sphere x y z radius material red green blue reflectionIndex|fuzz
 
 ## How do I run this?
 ### WARNING: THIS PROGRAM TAKES A LONG TIME TO RUN AND IS CPU INTENSIVE :)
-0. I assume you can compile typescript and have npm installed.
+0. I assume you can compile typescript, have npm installed, and imagemagik working. Use macOS or a linux distro. 
 1. Clone the repo and change directory into it
     ```
     git clone https://github.com/WilliamC07/graphics-final.git && cd graphics-final.git
