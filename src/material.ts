@@ -1,4 +1,4 @@
-import {addRay, dotProduct, randomUnitRay, Ray, reflect, unitRay} from "./render/ray";
+import {addRay, dotProduct, random_in_unit_sphere, randomUnitRay, Ray, reflect, scaleRay, unitRay} from "./render/ray";
 import {HitRecords} from "./render/hittable";
 
 export abstract class Material {
@@ -31,16 +31,18 @@ export class LambertianDiffuse extends Material{
 
 export class Metal extends Material{
     private readonly color: Ray;
+    private readonly fuzz: number;
 
-    constructor(color: Ray){
+    constructor(color: Ray, fuzz: number){
         super();
         this.color = color;
+        this.fuzz = fuzz < 1 ? fuzz : 1;
     }
 
     scatter(rayOrigin: Ray, rayDirection: Ray, hitRecords: HitRecords, scatterInfo: ScatterInfo): boolean {
         const reflected: Ray = reflect(unitRay(rayDirection), hitRecords.normal);
         scatterInfo.scatteredPosition = hitRecords.positionOfIntersection;
-        scatterInfo.scatteredDirection = reflected;
+        scatterInfo.scatteredDirection = addRay(reflected, scaleRay(random_in_unit_sphere(), this.fuzz));
         scatterInfo.attenuation = this.color;
         return dotProduct(reflected, hitRecords.normal) > 0;
     }

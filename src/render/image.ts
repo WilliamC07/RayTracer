@@ -268,8 +268,8 @@ export class RayTraceImage extends Image {
 
         this.hittableList.add(new Sphere([0, 0, -1], 0.5, new LambertianDiffuse([0.7, 0.3, 0.3])));
         this.hittableList.add(new Sphere([0, -100.5, -1], 100, new LambertianDiffuse([0.8, 0.8, 0.8])));
-        this.hittableList.add(new Sphere([1, 0, -1], 0.5, new Metal([.8, .6, .2])));
-        this.hittableList.add(new Sphere([-1, 0, -1], .5, new Metal([.8, .8, .8])));
+        this.hittableList.add(new Sphere([1, 0, -1], 0.5, new Metal([.8, .6, .2], 0.3)));
+        this.hittableList.add(new Sphere([-1, 0, -1], .5, new Metal([.8, .8, .8], 1)));
 
         for (let row = this.rows - 1; row >= 0; row--) {
             for (let column = 0; column < this.columns; column++) {

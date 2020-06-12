@@ -76,6 +76,16 @@ export function randomUnitRay(): Ray{
     return [r * Math.cos(a), r * Math.sin(a), z];
 }
 
+export function random_in_unit_sphere(){
+    while(true){
+        const ray = randomRangedRay(-1, 1);
+        if(rayLengthSquared(ray) >= 1){
+            continue;
+        }
+        return ray;
+    }
+}
+
 /**
  *
  * @param v Ray to be reflected
