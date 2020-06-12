@@ -166,7 +166,14 @@ def p_command_sphere(p):
     """command : SPHERE NUMBER NUMBER NUMBER NUMBER
                | SPHERE SYMBOL NUMBER NUMBER NUMBER NUMBER
                | SPHERE NUMBER NUMBER NUMBER NUMBER SYMBOL
-               | SPHERE SYMBOL NUMBER NUMBER NUMBER NUMBER SYMBOL"""
+               | SPHERE SYMBOL NUMBER NUMBER NUMBER NUMBER SYMBOL
+               | SPHERE NUMBER NUMBER NUMBER NUMBER TEXT NUMBER NUMBER NUMBER NUMBER """
+
+    if len(p) == 11:
+        cmd = {'op': p[1], 'constants': None, 'cs': None, 'args': p[2:]}
+        commands.append(cmd)
+        return
+
     cmd = {'op' : p[1], 'constants' : None, 'cs' : None, 'args':[]}
     arg_start = 2
     if isinstance(p[2], str):

@@ -21,6 +21,8 @@ import path from 'path'
 import {addColor, setEyeAndAimVector, SymbolColor} from "../render/lighting";
 import fs from 'fs';
 import chalk from "chalk";
+import {Sphere} from "../render/hittable";
+import {Dielectric, LambertianDiffuse, Metal} from "../material";
 
 // MDL file typings
 interface MDLCommand {
@@ -43,6 +45,8 @@ interface MDLObject {
         readonly [constantName: string]: MDLSymbol
     }
 }
+
+let isRayTrace: boolean = false;
 
 function parseMDLFile(fileName: string){
     const filePath = path.join(process.cwd(), fileName);
@@ -174,6 +178,7 @@ function generateImage(parsedMDL: MDLObject, frames: number, knobsForFrame?: Map
     for(const command of parsedMDL.commands){
         if(command.op === "shading"){
             image = new RayTraceImage(500, 500);
+            isRayTrace = true;
         }else if(command.op === "camera"){
             console.log(chalk.yellow("we ignore the aim!"));
             setEyeAndAimVector(command.eye, command.aim);
@@ -327,11 +332,38 @@ function scale(args: any[], transformer: Transformer, knob?: string|null, knobsF
     toScale(transformer, x, y, z);
 }
 
-function sphere(args: number[], polygonMatrix: PolygonMatrix, transformer: Transformer, image: Image, colorName: string){
-    const [x, y, z, radius] = args;
-    drawSphere(polygonMatrix, x, y, z, radius);
-    multiplyEdgeMatrix(transformer, polygonMatrix);
-    draw(image, polygonMatrix, colorName);
+function sphere(args: any[], polygonMatrix: PolygonMatrix, transformer: Transformer, image: Image, colorName: string){
+    if(isRayTrace){
+        const rayImage = image as RayTraceImage;
+        const [x, y, z, radius, material, r, g, b, extra] = args as [number, number, number, number, string, number, number, number, number];
+        // extra is for fuzz and reflection index
+        switch(material){
+            case 'diffuse':
+                rayImage.addWorldShape(new Sphere([x, y, z], radius, new LambertianDiffuse([r, g, b])));
+                break;
+            case 'metal':
+                rayImage.addWorldShape(new Sphere([x, y, z], radius, new Metal([r, g, b], extra)));
+                break;
+            case 'glass':
+                rayImage.addWorldShape(new Sphere([x, y, z], radius, new Dielectric(extra)));
+                break;
+            default:
+                console.log(chalk.red("Do not understand material: " + material));
+                process.exit();
+        }
+
+        // this.hittableList.add(new Sphere([0, 0, -1], 0.5, new LambertianDiffuse([0.7, 0.3, 0.3])));
+        // this.hittableList.add(new Sphere([0, -100.5, -1], 100, new LambertianDiffuse([0.8, 0.8, 0.8])));
+        // this.hittableList.add(new Sphere([1, 0, -1], 0.5, new Metal([.8, .6, .2], 0.3)));
+        // this.hittableList.add(new Sphere([-1, 0, -1], .5, new Dielectric(1.5)));
+
+
+    }else{
+        const [x, y, z, radius] = args;
+        drawSphere(polygonMatrix, x, y, z, radius);
+        multiplyEdgeMatrix(transformer, polygonMatrix);
+        draw(image, polygonMatrix, colorName);
+    }
 }
 
 function torus(args: number[], polygonMatrix: PolygonMatrix, transformer: Transformer, image: Image, colorName: string){

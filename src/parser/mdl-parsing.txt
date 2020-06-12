@@ -50,7 +50,18 @@ All image creation commands will operate as follows:
 3. Render the object.
 4. Throw away the point list (if this is applicable in your implementation).
 
+sphere x y z radius material red green blue reflectionIndex|fuzz
+    - RAY TRACE ONLY!!!
+    - YOU MUST FILL IN ALL FIELDS, EVEN IF IT ISN"T NECESSARY. JUST PUT RANDOM VALUE
+    - "sphere number number number number string number number number number"
+    - If material is:
+        - metal: last value is "fuzz" positive value from 0 to 1 exclusive. fuzziness of reflection from metal
+        - diffuse: put any NUMBER for last argument
+        - glass: put negative radius for clear glass. positive for reflection glass. Put positive value for reflection index (last argument)
+            - to get reflection index: https://en.wikipedia.org/wiki/List_of_refractive_indices
+            - put any random NUMBER for "red", "green", and "blue" field
 sphere [constants] x y z r [coord_system]
+    - PHONG ONLY!!!
 
 torus [constants] x y z r0 r1  [coord_system]
 
@@ -104,11 +115,15 @@ light r g b x y z  	- creates a "light" datastructure with rgb values
 
 ambient r g b 		- specifies how much ambient light is in the scene
 
+constants name material r g b index
+    - RAY TRACING ONLY!!!
+
 constants name kar kdr ksr kag kdg ksg kab kdb ksb [r] [g] [b]
 			- saves a set of lighting components in the
 			  symbol table under "name."
  			- r g b intensities can be specified. If not specified, they
 			  default to 0.
+			- PHONG ONLY!!!
 
 shading wireframe|flat|gouraud|phong|raytrace
 			- set the shading mode
