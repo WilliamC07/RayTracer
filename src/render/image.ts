@@ -263,6 +263,7 @@ export class RayTraceImage extends Image {
         // drawing polygons doesn't actually draw on to the picture, we must ray trace to generate the images
         this.rayTracePolygons();
         super.saveToDisk(fileName);
+        console.log(chalk.green("Please open " + fileName))
     }
 
     private rayTracePolygons() {
