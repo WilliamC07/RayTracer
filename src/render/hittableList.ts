@@ -21,6 +21,7 @@ export default class HittableList {
             faceNormal: undefined,
             isFrontFace: false,
             normal: undefined,
+            material: undefined,
             positionOfIntersection: undefined,
             time: 0
         };

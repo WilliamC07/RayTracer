@@ -68,12 +68,19 @@ export function randomRangedRay(min: number, max: number): Ray{
     return [randomNumber(min, max), randomNumber(min, max), randomNumber(min, max)]
 }
 
-export function random_in_unit_sphere(){
-    while(true){
-        const ray = randomRangedRay(-1, 1);
-        if(rayLengthSquared(ray) >= 1){
-            continue;
-        }
-        return ray;
-    }
+export function randomUnitRay(): Ray{
+    // lambertian distribution
+    const a = randomNumber(0, 2*Math.PI);
+    const z = randomNumber(-1, 1);
+    const r = Math.sqrt(1 - z * z);
+    return [r * Math.cos(a), r * Math.sin(a), z];
+}
+
+/**
+ *
+ * @param v Ray to be reflected
+ * @param n Normal to surface reflected off of. Unit Vector
+ */
+export function reflect(v: Ray, n: Ray){
+    return subtractRay(v, scaleRay(n, 2 * dotProduct(v, n)))
 }

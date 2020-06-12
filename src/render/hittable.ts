@@ -1,9 +1,11 @@
 import {dotProduct, Ray, rayAtTime, rayLengthSquared, scaleRay, subtractRay} from "./ray";
+import {Material} from "../material";
 
 export interface HitRecords {
     time: number;
     positionOfIntersection: Ray;
     normal: Ray,
+    material: Material,
     isFrontFace: boolean,
     faceNormal: Ray,
 }
@@ -27,11 +29,13 @@ export abstract class Hittable {
 export class Sphere extends Hittable {
     private readonly center: Ray;
     private readonly radius: number;
+    private readonly material: Material;
 
-    constructor(center: Ray, radius: number){
+    constructor(center: Ray, radius: number, material: Material){
         super();
         this.center = center;
         this.radius = radius;
+        this.material = material;
     }
 
     public hit(origin: Ray, direction: Ray, tMin: number, tMax: number, hitRecords: HitRecords): boolean {
@@ -49,6 +53,7 @@ export class Sphere extends Hittable {
                 hitRecords.time = time;
                 hitRecords.positionOfIntersection = rayAtTime(origin, direction, time);
                 hitRecords.normal = scaleRay(subtractRay(hitRecords.positionOfIntersection, this.center), 1/this.radius);
+                hitRecords.material = this.material;
                 const outwardNormal = scaleRay(subtractRay(hitRecords.positionOfIntersection, this.center), 1/this.radius);
                 calculateFaceNormal(origin, direction, outwardNormal, hitRecords);
 
@@ -59,6 +64,7 @@ export class Sphere extends Hittable {
                 hitRecords.time = time;
                 hitRecords.positionOfIntersection = rayAtTime(origin, direction, time);
                 hitRecords.normal = scaleRay(subtractRay(hitRecords.positionOfIntersection, this.center), 1/this.radius);
+                hitRecords.material = this.material;
                 const outwardNormal = scaleRay(subtractRay(hitRecords.positionOfIntersection, this.center), 1/this.radius);
                 calculateFaceNormal(origin, direction, outwardNormal, hitRecords);
 

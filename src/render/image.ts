@@ -5,8 +5,8 @@ import {calculateSurfaceNormal, clamp, toRadians, Vector, vectorize} from "../ut
 import {calculateColor, Color, eyeVector, viewingVector} from "./lighting";
 import {
     addRay,
-    dotProduct,
-    random_in_unit_sphere,
+    dotProduct, multiplyRay,
+    randomUnitRay,
     Ray,
     rayAtTime,
     rayLengthSquared,
@@ -18,6 +18,7 @@ import chalk from "chalk";
 import {HitRecords, Hittable, Sphere} from "./hittable";
 import HittableList from "./hittableList";
 import Camera from "./camera";
+import {LambertianDiffuse, Metal, ScatterInfo} from "../material";
 
 export abstract class Image {
     public readonly columns: number;
@@ -265,8 +266,10 @@ export class RayTraceImage extends Image {
 
         const camera = new Camera();
 
-        this.hittableList.add(new Sphere([0, 0, -1], .5));
-        this.hittableList.add(new Sphere([0, -100.5, -1], 100));
+        this.hittableList.add(new Sphere([0, 0, -1], 0.5, new LambertianDiffuse([0.7, 0.3, 0.3])));
+        this.hittableList.add(new Sphere([0, -100.5, -1], 100, new LambertianDiffuse([0.8, 0.8, 0.8])));
+        this.hittableList.add(new Sphere([1, 0, -1], 0.5, new Metal([.8, .6, .2])));
+        this.hittableList.add(new Sphere([-1, 0, -1], .5, new Metal([.8, .8, .8])));
 
         for (let row = this.rows - 1; row >= 0; row--) {
             for (let column = 0; column < this.columns; column++) {
@@ -295,7 +298,7 @@ export class RayTraceImage extends Image {
         }
     }
 
-    private getRayColor(origin: Ray, ray: Ray, depth: number): number[]{
+    private getRayColor(origin: Ray, directionRay: Ray, depth: number): number[]{
         if(depth > this.maxRecursionDepth){
             return [0, 0, 0];
         }
@@ -304,14 +307,22 @@ export class RayTraceImage extends Image {
             faceNormal: undefined,
             isFrontFace: false,
             normal: undefined,
+            material: undefined,
             positionOfIntersection: undefined, // p
             time: 0
         };
-        if(this.hittableList.hit(origin, ray, 0, Infinity, hitRecords)){
-            const target: Ray = addRay(addRay(hitRecords.positionOfIntersection, hitRecords.normal), random_in_unit_sphere());
-            return scaleRay(this.getRayColor(hitRecords.positionOfIntersection, subtractRay(target, hitRecords.positionOfIntersection), depth++) as Ray, 0.5,)
+        if(this.hittableList.hit(origin, directionRay, 0, Infinity, hitRecords)){
+            const scatterInfo: ScatterInfo = {
+                scatteredPosition: undefined,
+                scatteredDirection: undefined,
+                attenuation: undefined
+            };
+            if(hitRecords.material.scatter(origin, directionRay, hitRecords, scatterInfo)){
+                return multiplyRay(scatterInfo.attenuation, this.getRayColor(scatterInfo.scatteredPosition, scatterInfo.scatteredDirection, depth + 1) as Ray);
+            }
+            return [0, 0, 0];
         }else{
-            const unit = unitRay(ray);
+            const unit = unitRay(directionRay);
             const t = 0.5 * (unit[1] + 1);
             return addRay(scaleRay([1, 1, 1], (1 - t)), scaleRay([0.5, 0.7, 1], t));
         }
