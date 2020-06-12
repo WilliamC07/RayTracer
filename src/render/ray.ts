@@ -94,3 +94,11 @@ export function random_in_unit_sphere(){
 export function reflect(v: Ray, n: Ray){
     return subtractRay(v, scaleRay(n, 2 * dotProduct(v, n)))
 }
+
+export function refract(uv: Ray, n: Ray, etaiOverEtat: number): Ray{
+    // snell's law
+    const cosTheta = dotProduct(scaleRay(uv, -1), n);
+    const rOutParallel = scaleRay(addRay(scaleRay(n, cosTheta), uv), etaiOverEtat);
+    const rOutPerp = scaleRay(n, -Math.sqrt(1 - rayLengthSquared(rOutParallel)));
+    return addRay(rOutParallel, rOutPerp);
+}

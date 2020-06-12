@@ -1,4 +1,14 @@
-import {addRay, dotProduct, random_in_unit_sphere, randomUnitRay, Ray, reflect, scaleRay, unitRay} from "./render/ray";
+import {
+    addRay,
+    dotProduct,
+    random_in_unit_sphere,
+    randomUnitRay,
+    Ray,
+    reflect,
+    refract,
+    scaleRay,
+    unitRay
+} from "./render/ray";
 import {HitRecords} from "./render/hittable";
 
 export abstract class Material {
@@ -45,5 +55,39 @@ export class Metal extends Material{
         scatterInfo.scatteredDirection = addRay(reflected, scaleRay(random_in_unit_sphere(), this.fuzz));
         scatterInfo.attenuation = this.color;
         return dotProduct(reflected, hitRecords.normal) > 0;
+    }
+}
+
+export class Dielectric extends Material {
+    private readonly reflectionIndex: number;
+
+    constructor(reflectionIndex: number){
+        super();
+        this.reflectionIndex = reflectionIndex;
+    }
+
+    scatter(rayOrigin: Ray, rayDirection: Ray, hitRecords: HitRecords, scatterInfo: ScatterInfo): boolean {
+        scatterInfo.attenuation = [1, 1, 1];
+        let etaiOverEtat: number = this.reflectionIndex;
+        if(hitRecords.isFrontFace){
+            etaiOverEtat = 1 / this.reflectionIndex
+        }
+
+
+        const unitDirection = unitRay(rayDirection);
+        const cosTheta = Math.min(dotProduct(scaleRay(unitDirection, -1), hitRecords.normal), 1);
+        const sinTheta = Math.sqrt(1 - cosTheta * cosTheta);
+        if(etaiOverEtat * sinTheta > 1){
+            const reflected = reflect(unitDirection, hitRecords.normal);
+            scatterInfo.scatteredPosition = hitRecords.positionOfIntersection;
+            scatterInfo.scatteredDirection = reflected;
+            return true;
+        }
+
+
+        const refracted = refract(unitDirection, hitRecords.normal, etaiOverEtat);
+        scatterInfo.scatteredPosition = hitRecords.positionOfIntersection;
+        scatterInfo.scatteredDirection = refracted;
+        return true;
     }
 }
