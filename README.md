@@ -42,6 +42,10 @@ sphere x y z radius material red green blue reflectionIndex|fuzz
     ```
 3. Open the image created (asd.png)
 
+## Source
+- I followed [this guide (Ray tracing in one weekend)](https://raytracing.github.io/books/RayTracingInOneWeekend.html).
+    - The guide was in c++ and it did NOT take a weekend to implement.
+
 ## Proposed Features
 - Ray tracing
     - [Online guide](https://www.scratchapixel.com/lessons/3d-basic-rendering/introduction-to-ray-tracing)
