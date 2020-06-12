@@ -1,4 +1,5 @@
 import {Point, PolygonMatrix} from "../matrix";
+import {calculateSurfaceNormal, randomNumber} from "../utility/math-utility";
 
 export type Ray = [number, number, number];
 
@@ -59,18 +60,20 @@ export function rayAtTime(ray: Ray, direction: Ray, t: number){
     return addRay(ray, scaleRay(direction, t));
 }
 
-/**
- *
- * @param polygonMatrix All polygons on the scene
- * @param polygonIndex Index of the triangle to check if the ray intersects
- * @param ray Ray used for line of sight
- * @return true if ray does intersect, false other wise
- */
-export function doesIntersectPolygon(polygonMatrix: PolygonMatrix, polygonIndex: number, ray: Ray): boolean{
-
-    return false;
+export function randomRay(): Ray{
+    return [Math.random(), Math.random(), Math.random()]
 }
 
-export function calculateRayColor(ray: Ray){
+export function randomRangedRay(min: number, max: number): Ray{
+    return [randomNumber(min, max), randomNumber(min, max), randomNumber(min, max)]
+}
 
+export function random_in_unit_sphere(){
+    while(true){
+        const ray = randomRangedRay(-1, 1);
+        if(rayLengthSquared(ray) >= 1){
+            continue;
+        }
+        return ray;
+    }
 }

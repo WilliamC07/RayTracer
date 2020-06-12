@@ -3,7 +3,17 @@ import {exec} from "child_process";
 import {promises as fs} from "fs";
 import {calculateSurfaceNormal, clamp, toRadians, Vector, vectorize} from "../utility/math-utility";
 import {calculateColor, Color, eyeVector, viewingVector} from "./lighting";
-import {addRay, dotProduct, Ray, rayAtTime, rayLengthSquared, scaleRay, subtractRay, unitRay} from "./ray";
+import {
+    addRay,
+    dotProduct,
+    random_in_unit_sphere,
+    Ray,
+    rayAtTime,
+    rayLengthSquared,
+    scaleRay,
+    subtractRay,
+    unitRay
+} from "./ray";
 import chalk from "chalk";
 import {HitRecords, Hittable, Sphere} from "./hittable";
 import HittableList from "./hittableList";
@@ -217,6 +227,7 @@ export class RayTraceImage extends Image {
     private hittableList: HittableList;
     private fov: number = toRadians(25);
     private samplesPerPixel = 100;
+    private maxRecursionDepth = 50;
 
     constructor(columns: number, rows: number) {
         super(columns, rows);
@@ -268,7 +279,7 @@ export class RayTraceImage extends Image {
 
                     let primaryRayDirection = camera.getRay(u, v);
 
-                    const color = this.getRayColor(primaryRayDirection);
+                    const color = this.getRayColor([0, 0, 0], primaryRayDirection, 1);
                     for(let i = 0; i < 3; i++){
                         pixelColor[i] += color[i];
                     }
@@ -283,20 +294,21 @@ export class RayTraceImage extends Image {
         }
     }
 
-    /**
-     * Returns [red, green, blue] with each value between 0 and 1
-     * @param ray
-     */
-    private getRayColor(ray: Ray): number[]{
+    private getRayColor(origin: Ray, ray: Ray, depth: number): number[]{
+        if(depth > this.maxRecursionDepth){
+            return [0, 0, 0];
+        }
+
         const hitRecords: HitRecords = {
             faceNormal: undefined,
             isFrontFace: false,
             normal: undefined,
-            positionOfIntersection: undefined,
+            positionOfIntersection: undefined, // p
             time: 0
         };
-        if(this.hittableList.hit([0, 0, 0], ray, 0, Infinity, hitRecords)){
-            return addRay(hitRecords.normal, [1, 1, 1]).map(val => val * .5);
+        if(this.hittableList.hit(origin, ray, 0, Infinity, hitRecords)){
+            const target: Ray = addRay(addRay(hitRecords.positionOfIntersection, hitRecords.normal), random_in_unit_sphere());
+            return scaleRay(this.getRayColor(hitRecords.positionOfIntersection, subtractRay(target, hitRecords.positionOfIntersection), depth++) as Ray, 0.5,)
         }else{
             const unit = unitRay(ray);
             const t = 0.5 * (unit[1] + 1);
