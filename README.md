@@ -1,8 +1,19 @@
 # graphics-final
 
+## Repository for holding my assignments for Stuyvesant High School Computer Graphics Course
+Computer graphics is a post AP Computer Science course where we wrote our own graphics engine from scratch in a language of our choice (I chose Typescript). We covered topics like line/curve drawing algorithms, Phong shading, animations, and more. For my final assignment, I chose to learn and implement ray tracing.
+
 ## Team
 - Team Name: House Graphics
 - Team Members: William Cao Period 10
+
+## Sample images:
+### Ray traced image
+![Ray traced image](sample/raytrace.png)
+### Bezier curves and lines
+![Curves and lines of the Sydney Opera House](sample/lined.png)
+### Animation and .obj files
+![House spinning](sample/spinning_house.gif)
 
 ## Feature Implemented
 - Antialiasing with raytracing. Supported materials are: glass, metal, and diffuse.
@@ -44,7 +55,7 @@ sphere x y z radius material red green blue reflectionIndex|fuzz
 
 ## Source
 - I followed [this guide (Ray tracing in one weekend)](https://raytracing.github.io/books/RayTracingInOneWeekend.html).
-    - The guide was in c++ and it did NOT take a weekend to implement.
+    - The guide was in c++
 
 ## Proposed Features
 - Ray tracing
